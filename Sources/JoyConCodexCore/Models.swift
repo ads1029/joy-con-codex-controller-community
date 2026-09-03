@@ -197,6 +197,9 @@ public enum MappingActionKind: String, CaseIterable, Codable, Sendable, Identifi
     case tap
     case hold
     case functionLayer
+    case scrollUp
+    case scrollDown
+    case scrollToBottom
 
     public var id: String { rawValue }
 
@@ -205,8 +208,26 @@ public enum MappingActionKind: String, CaseIterable, Codable, Sendable, Identifi
         case .tap: "Tap"
         case .hold: "Hold"
         case .functionLayer: "Function layer"
+        case .scrollUp: "Scroll up"
+        case .scrollDown: "Scroll down"
+        case .scrollToBottom: "Scroll to bottom"
         }
     }
+
+    public var isScroll: Bool {
+        switch self {
+        case .scrollUp, .scrollDown, .scrollToBottom:
+            true
+        case .tap, .hold, .functionLayer:
+            false
+        }
+    }
+}
+
+public enum ScrollCommand: String, Codable, Equatable, Sendable {
+    case up
+    case down
+    case toBottom
 }
 
 public struct MappingAction: Codable, Equatable, Sendable {
@@ -230,6 +251,27 @@ public struct MappingAction: Codable, Equatable, Sendable {
         MappingAction(kind: .functionLayer)
     }
 
+    public static var scrollUp: MappingAction {
+        MappingAction(kind: .scrollUp)
+    }
+
+    public static var scrollDown: MappingAction {
+        MappingAction(kind: .scrollDown)
+    }
+
+    public static var scrollToBottom: MappingAction {
+        MappingAction(kind: .scrollToBottom)
+    }
+
+    public var scrollCommand: ScrollCommand? {
+        switch kind {
+        case .scrollUp: .up
+        case .scrollDown: .down
+        case .scrollToBottom: .toBottom
+        case .tap, .hold, .functionLayer: nil
+        }
+    }
+
     public var formatted: String {
         switch kind {
         case .tap:
@@ -238,6 +280,12 @@ public struct MappingAction: Codable, Equatable, Sendable {
             shortcut.map { "Hold \($0.formatted)" } ?? "Invalid hold"
         case .functionLayer:
             "Function layer"
+        case .scrollUp:
+            "Scroll up"
+        case .scrollDown:
+            "Scroll down"
+        case .scrollToBottom:
+            "Scroll to conversation bottom"
         }
     }
 }
@@ -248,20 +296,32 @@ public enum MappingLayer: String, Codable, Sendable {
 }
 
 public struct InputMapping: Codable, Equatable, Sendable, Identifiable {
+    public static let defaultDoubleTapIntervalMilliseconds = 280
+
     public var input: ControllerInput
     public var primaryAction: MappingAction?
     public var functionAction: MappingAction?
+    public var doubleTapAction: MappingAction?
+    public var doubleTapIntervalMilliseconds: Int?
 
     public var id: ControllerInput { input }
 
     public init(
         input: ControllerInput,
         primaryAction: MappingAction?,
-        functionAction: MappingAction? = nil
+        functionAction: MappingAction? = nil,
+        doubleTapAction: MappingAction? = nil,
+        doubleTapIntervalMilliseconds: Int? = nil
     ) {
         self.input = input
         self.primaryAction = primaryAction
         self.functionAction = functionAction
+        self.doubleTapAction = doubleTapAction
+        self.doubleTapIntervalMilliseconds = doubleTapIntervalMilliseconds
+    }
+
+    public var resolvedDoubleTapIntervalMilliseconds: Int {
+        doubleTapIntervalMilliseconds ?? Self.defaultDoubleTapIntervalMilliseconds
     }
 
     public func action(for layer: MappingLayer) -> MappingAction? {
@@ -311,6 +371,8 @@ public enum ProfileValidationError: LocalizedError, Equatable, Sendable {
     case mismatchedKeyLabel(input: ControllerInput, expected: String, actual: String)
     case missingShortcut(input: ControllerInput, layer: MappingLayer)
     case unexpectedFunctionLayerShortcut(input: ControllerInput, layer: MappingLayer)
+    case invalidDoubleTapAction(ControllerInput)
+    case invalidDoubleTapInterval(input: ControllerInput, milliseconds: Int)
 
     public var errorDescription: String? {
         switch self {
@@ -330,6 +392,10 @@ public enum ProfileValidationError: LocalizedError, Equatable, Sendable {
             "\(input.displayName) has a \(layer.rawValue) action without a shortcut."
         case let .unexpectedFunctionLayerShortcut(input, layer):
             "\(input.displayName) has an unexpected shortcut on its \(layer.rawValue) function-layer action."
+        case let .invalidDoubleTapAction(input):
+            "\(input.displayName) double-tap actions must be tap shortcuts and require a primary tap shortcut."
+        case let .invalidDoubleTapInterval(input, milliseconds):
+            "\(input.displayName) uses an invalid double-tap window of \(milliseconds) ms; use 120–800 ms."
         }
     }
 }
@@ -350,6 +416,22 @@ public extension MappingProfile {
             }
             try validate(mapping.primaryAction, for: mapping.input, layer: .primary)
             try validate(mapping.functionAction, for: mapping.input, layer: .function)
+            if let doubleTapAction = mapping.doubleTapAction {
+                guard
+                    doubleTapAction.kind == .tap,
+                    mapping.primaryAction?.kind == .tap
+                else {
+                    throw ProfileValidationError.invalidDoubleTapAction(mapping.input)
+                }
+                try validate(doubleTapAction, for: mapping.input, layer: .primary)
+                let interval = mapping.resolvedDoubleTapIntervalMilliseconds
+                guard (120...800).contains(interval) else {
+                    throw ProfileValidationError.invalidDoubleTapInterval(
+                        input: mapping.input,
+                        milliseconds: interval
+                    )
+                }
+            }
         }
     }
 
@@ -359,7 +441,7 @@ public extension MappingProfile {
         layer: MappingLayer
     ) throws {
         guard let action else { return }
-        if action.kind == .functionLayer {
+        if action.kind == .functionLayer || action.kind.isScroll {
             guard action.shortcut == nil else {
                 throw ProfileValidationError.unexpectedFunctionLayerShortcut(
                     input: input,
@@ -521,5 +603,11 @@ public enum CodexShortcutCatalog {
             "Toggle sidebar",
         Shortcut(keyCode: 2, displayLabel: "D", modifiers: [.control, .shift]):
             "Voice dictation",
+        Shortcut(keyCode: 3, displayLabel: "F", modifiers: [.control, .option]):
+            "Toggle Fast mode",
+        Shortcut(keyCode: 124, displayLabel: "Right Arrow", modifiers: [.control, .option]):
+            "Increase reasoning effort",
+        Shortcut(keyCode: 123, displayLabel: "Left Arrow", modifiers: [.control, .option]):
+            "Decrease reasoning effort",
     ]
 }

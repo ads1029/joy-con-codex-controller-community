@@ -82,6 +82,20 @@ struct ContentView: View {
                     }
                 }
 
+                Toggle(isOn: $model.focusCodexOnStickMove) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Focus Codex on stick movement")
+                            .font(.headline)
+                        Text(
+                            model.testMode
+                                ? "Saved, but paused while Test Mode is active."
+                                : "When another app is frontmost, the first stick direction focuses Codex and is consumed."
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    }
+                }
+
                 Divider()
 
                 keyboardPermissionStatus
@@ -139,12 +153,44 @@ struct ContentView: View {
                                 .foregroundStyle(.secondary)
                             }
                             Spacer()
-                            Text(controller.isSupported ? "Active" : "Ignored")
-                                .foregroundStyle(
-                                    controller.isSupported ? Color.green : Color.secondary
-                                )
+                            VStack(alignment: .trailing, spacing: 4) {
+                                Text(controller.isSupported ? "Active" : "Ignored")
+                                    .foregroundStyle(
+                                        controller.isSupported ? Color.green : Color.secondary
+                                    )
+
+                                if controller.isSupported {
+                                    if let battery = controller.battery {
+                                        Label(battery.summary, systemImage: battery.systemImage)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    } else {
+                                        Label("Battery unavailable", systemImage: "battery.0")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
                         }
                     }
+                }
+
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Left Joy-Con grip")
+                            .font(.headline)
+                        Text("Portrait corrects the D-pad labels and rotates the stick for Minus-at-top use.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Picker("Left Joy-Con grip", selection: $model.leftJoyConOrientation) {
+                        ForEach(SingleJoyConOrientation.allCases) { orientation in
+                            Text(orientation.displayName).tag(orientation)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 240)
                 }
 
                 HStack {
@@ -344,6 +390,7 @@ struct ContentView: View {
         case .layerActivated: "Fn active"
         case .layerReleased: "Fn released"
         case .coalesced: "shared hold"
+        case .deferred: "waiting for second tap"
         case .suppressedByTestMode: "tested only"
         case .emitted: "sent"
         case let .failed(message): "blocked: \(message)"
@@ -384,7 +431,10 @@ private struct MappingListItem: View {
     private var summary: String {
         let primary = mapping.primaryAction?.formatted ?? "Disabled"
         let function = mapping.functionAction?.formatted ?? "Disabled"
-        return "Default: \(primary) · Fn: \(function)"
+        let doubleTap = mapping.doubleTapAction.map {
+            " · Double: \($0.formatted) (\(mapping.resolvedDoubleTapIntervalMilliseconds) ms)"
+        } ?? ""
+        return "Default: \(primary) · Fn: \(function)\(doubleTap)"
     }
 }
 
@@ -412,12 +462,46 @@ private struct MappingRow: View {
             ) { action in
                 update(action, layer: .function)
             }
+
+            ActionSlotEditor(
+                title: "Double",
+                action: mapping.doubleTapAction,
+                fallbackAction: mapping.primaryAction
+            ) { action in
+                var copy = mapping
+                copy.doubleTapAction = action
+                copy.doubleTapIntervalMilliseconds = action == nil
+                    ? nil
+                    : copy.resolvedDoubleTapIntervalMilliseconds
+                onChange(copy)
+            }
+
+            if mapping.doubleTapAction != nil {
+                Stepper(
+                    "Double-tap window: \(mapping.resolvedDoubleTapIntervalMilliseconds) ms",
+                    value: doubleTapIntervalBinding,
+                    in: 120...800,
+                    step: 10
+                )
+                .font(.caption)
+            }
         }
         .padding(.vertical, 10)
     }
 
     private var starterMapping: InputMapping? {
         MappingProfile.starter.mapping(for: mapping.input)
+    }
+
+    private var doubleTapIntervalBinding: Binding<Int> {
+        Binding(
+            get: { mapping.resolvedDoubleTapIntervalMilliseconds },
+            set: { milliseconds in
+                var copy = mapping
+                copy.doubleTapIntervalMilliseconds = milliseconds
+                onChange(copy)
+            }
+        )
     }
 
     private func update(_ action: MappingAction?, layer: MappingLayer) {
@@ -451,6 +535,9 @@ private struct ActionSlotEditor: View {
             if let action {
                 if action.kind == .functionLayer {
                     Label("Function layer", systemImage: "square.stack.3d.up")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else if action.kind.isScroll {
+                    Label(action.formatted, systemImage: "scroll")
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else if let shortcut = action.shortcut {
                     Picker("Behavior", selection: kindBinding) {
@@ -561,6 +648,12 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Toggle("Launch in test mode", isOn: $model.testMode)
+            Toggle("Focus Codex on stick movement", isOn: $model.focusCodexOnStickMove)
+            Picker("Left Joy-Con grip", selection: $model.leftJoyConOrientation) {
+                ForEach(SingleJoyConOrientation.allCases) { orientation in
+                    Text(orientation.displayName).tag(orientation)
+                }
+            }
             LabeledContent("Profile", value: model.profile.name)
             LabeledContent(
                 "Accessibility",

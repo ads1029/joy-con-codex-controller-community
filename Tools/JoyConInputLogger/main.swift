@@ -2,29 +2,48 @@ import Foundation
 import IOKit.hid
 
 private let nintendoVendorID = 0x057E
-private let rightJoyConProductID = 0x2007
 private let buttonUsagePage: UInt32 = 0x09
+
+private enum JoyConKind {
+    case left
+    case right
+
+    var productID: Int {
+        switch self {
+        case .left: 0x2006
+        case .right: 0x2007
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .left: "Joy-Con (L)"
+        case .right: "Joy-Con (R)"
+        }
+    }
+
+    var guidedButtons: [String] {
+        switch self {
+        case .left:
+            ["Up", "Down", "Left", "Right", "-", "CAPTURE", "L", "ZL", "Left Stick Click", "SL", "SR"]
+        case .right:
+            ["A", "B", "X", "Y", "+", "HOME", "R", "ZR", "Right Stick Click", "SL", "SR"]
+        }
+    }
+}
 
 private final class JoyConEventLogger {
     private let startedAt = Date()
-    private let guidedButtons = [
-        "A",
-        "B",
-        "X",
-        "Y",
-        "+",
-        "HOME",
-        "R",
-        "ZR",
-        "Right Stick Click",
-        "SL",
-        "SR",
-    ]
+    private let guidedButtons: [String]
 
     private var guidedIndex = 0
     private var eventIndex = 0
     private var pressedUsages = Set<UInt32>()
     private var guidedResults: [(button: String, usage: UInt32)] = []
+
+    init(kind: JoyConKind) {
+        guidedButtons = kind.guidedButtons
+    }
 
     func deviceMatched(_ device: IOHIDDevice) {
         let product = property(kIOHIDProductKey, from: device) as? String ?? "Unknown"
@@ -155,12 +174,13 @@ private func inputValueCallback(
 @main
 private enum JoyConInputLoggerMain {
     static func main() {
-        let eventLogger = JoyConEventLogger()
+        let kind: JoyConKind = CommandLine.arguments.contains("--right") ? .right : .left
+        let eventLogger = JoyConEventLogger(kind: kind)
         let context = Unmanaged.passUnretained(eventLogger).toOpaque()
         let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
         let matching: [String: Any] = [
             kIOHIDVendorIDKey: nintendoVendorID,
-            kIOHIDProductIDKey: rightJoyConProductID,
+            kIOHIDProductIDKey: kind.productID,
         ]
 
         IOHIDManagerSetDeviceMatching(manager, matching as CFDictionary)
@@ -188,8 +208,10 @@ private enum JoyConInputLoggerMain {
         FileHandle.standardOutput.write(
             Data(
                 (
-                    "Joy-Con (R) HID logger\n"
-                        + "Listening for Nintendo 0x057E / Joy-Con (R) 0x2007.\n"
+                    "\(kind.displayName) HID logger\n"
+                        + "Listening for Nintendo 0x057E / \(kind.displayName) "
+                        + String(format: "0x%04X", kind.productID) + ".\n"
+                        + "Use --right to inspect a right Joy-Con; left is the default.\n"
                         + "Keep every control released until its prompt appears.\n\n"
                 ).utf8
             )

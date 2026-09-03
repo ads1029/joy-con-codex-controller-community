@@ -9,6 +9,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
         NSApplication.shared.setActivationPolicy(.accessory)
     }
+
+    func applicationShouldHandleReopen(
+        _ sender: NSApplication,
+        hasVisibleWindows flag: Bool
+    ) -> Bool {
+        if !flag {
+            sender.windows.first(where: \.canBecomeMain)?.makeKeyAndOrderFront(nil)
+        }
+        sender.activate(ignoringOtherApps: true)
+        return true
+    }
 }
 
 @main
@@ -28,8 +39,14 @@ struct JoyConCodexControllerApp: App {
             MenuBarCompanionView()
                 .environmentObject(model)
         } label: {
-            Image(systemName: model.menuBarStatus.systemImage)
-                .accessibilityLabel("Joy-Con Codex Controller")
+            HStack(spacing: 4) {
+                Image(systemName: model.menuBarStatus.systemImage)
+                if let battery = model.activeControllerBattery {
+                    Text(battery.compactSummary)
+                        .monospacedDigit()
+                }
+            }
+            .accessibilityLabel("Joy-Con Codex Controller")
         }
         .menuBarExtraStyle(.menu)
 

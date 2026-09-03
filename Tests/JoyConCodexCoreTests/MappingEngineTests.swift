@@ -169,6 +169,39 @@ struct MappingEngineTests {
         #expect(emitter.emissions.isEmpty)
     }
 
+    @Test("Scroll actions emit their scroll command without a keyboard shortcut")
+    func scrollActions() {
+        var profile = MappingProfile.starter
+        profile.update(InputMapping(input: .leftStickUp, primaryAction: .scrollUp))
+        profile.update(InputMapping(input: .leftStickPress, primaryAction: .scrollToBottom))
+        var engine = MappingEngine()
+        let emitter = RecordingEmitter()
+
+        let upward = engine.process(
+            event(.leftStickUp, .pressed),
+            profile: profile,
+            testMode: false,
+            emitter: emitter
+        )
+        _ = engine.process(
+            event(.leftStickUp, .released),
+            profile: profile,
+            testMode: false,
+            emitter: emitter
+        )
+        let bottom = engine.process(
+            event(.leftStickPress, .pressed),
+            profile: profile,
+            testMode: false,
+            emitter: emitter
+        )
+
+        #expect(upward.disposition == .emitted)
+        #expect(bottom.disposition == .emitted)
+        #expect(emitter.scrollCommands == [.up, .toBottom])
+        #expect(emitter.emissions.isEmpty)
+    }
+
     @Test("Emitter failure is surfaced without a partial success")
     func emitterFailure() {
         var engine = MappingEngine()
@@ -207,9 +240,14 @@ private struct RecordedEmission: Equatable {
 
 private final class RecordingEmitter: ShortcutEmitting {
     var emissions: [RecordedEmission] = []
+    var scrollCommands: [ScrollCommand] = []
 
     func emit(_ shortcut: Shortcut, phase: ShortcutEmissionPhase) {
         emissions.append(RecordedEmission(shortcut: shortcut, phase: phase))
+    }
+
+    func emit(_ scrollCommand: ScrollCommand) {
+        scrollCommands.append(scrollCommand)
     }
 }
 
@@ -219,6 +257,10 @@ private struct FailingEmitter: ShortcutEmitting {
     }
 
     func emit(_ shortcut: Shortcut, phase: ShortcutEmissionPhase) throws {
+        throw SyntheticFailure()
+    }
+
+    func emit(_ scrollCommand: ScrollCommand) throws {
         throw SyntheticFailure()
     }
 }

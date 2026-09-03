@@ -17,6 +17,7 @@ struct ControllerDescriptor: Identifiable, Equatable, Sendable {
     let side: JoyConSide
     let profile: String
     let isSupported: Bool
+    let battery: ControllerBatteryStatus?
 }
 
 @MainActor
@@ -31,14 +32,37 @@ final class GameControllerAdapter {
     private var connectObserver: NSObjectProtocol?
     private var disconnectObserver: NSObjectProtocol?
     private var hapticEngine: CHHapticEngine?
+    private let leftJoyConHIDAdapter = LeftJoyConHIDAdapter()
     private let rightJoyConHIDAdapter = RightJoyConHIDAdapter()
+    private var usesLeftJoyConHIDSupplement = false
     private var usesRightJoyConHIDFallback = false
     private var stickFilters: [String: StickDirectionFilter] = [:]
+    private var batteryRefreshTask: Task<Void, Never>?
+    private var leftJoyConRawBattery: ControllerBatteryStatus?
+
+    private(set) var leftJoyConOrientation: SingleJoyConOrientation = .portrait
 
     private(set) var inputSourceStatus: String?
 
     init() {
         GCController.shouldMonitorBackgroundEvents = true
+        leftJoyConHIDAdapter.onEvent = { [weak self] event in
+            Task { @MainActor [weak self] in
+                self?.onEvent?(event)
+            }
+        }
+        leftJoyConHIDAdapter.onStatus = { [weak self] status in
+            Task { @MainActor [weak self] in
+                self?.publishInputSourceStatus(status)
+            }
+        }
+        leftJoyConHIDAdapter.onBatteryStatus = { [weak self] status in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.leftJoyConRawBattery = status
+                self.refreshBatteryDescriptors()
+            }
+        }
         rightJoyConHIDAdapter.onEvent = { [weak self] event in
             Task { @MainActor [weak self] in
                 self?.onEvent?(event)
@@ -51,6 +75,7 @@ final class GameControllerAdapter {
         }
         installNotifications()
         refresh()
+        startBatteryRefresh()
     }
 
     func rescan() {
@@ -60,10 +85,53 @@ final class GameControllerAdapter {
             }
         }
         refresh()
+        leftJoyConHIDAdapter.requestBatteryStatus(force: true)
     }
 
     func stopDiscovery() {
         GCController.stopWirelessControllerDiscovery()
+    }
+
+    private func startBatteryRefresh() {
+        batteryRefreshTask?.cancel()
+        batteryRefreshTask = Task { @MainActor [weak self] in
+            do {
+                while !Task.isCancelled {
+                    try await Task.sleep(for: .seconds(30))
+                    self?.refreshBatteryDescriptors()
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                return
+            }
+        }
+    }
+
+    private func refreshBatteryDescriptors() {
+        let updatedDescriptors = GCController.controllers().map(descriptor)
+        guard updatedDescriptors != descriptors else { return }
+        descriptors = updatedDescriptors
+        onControllersChanged?(updatedDescriptors)
+    }
+
+    func setLeftJoyConOrientation(_ orientation: SingleJoyConOrientation) {
+        guard leftJoyConOrientation != orientation else { return }
+        leftJoyConOrientation = orientation
+        stickFilters.removeAll()
+
+        if
+            let activeController,
+            let activeControllerID,
+            side(for: activeController) == .left
+        {
+            attachHandlers(to: activeController, controllerID: activeControllerID)
+        }
+        publishInputSourceStatus(
+            orientation == .portrait
+                ? "Left Joy-Con uses portrait mapping with Minus at the top."
+                : "Left Joy-Con uses the legacy sideways mapping."
+        )
     }
 
     @discardableResult
@@ -132,7 +200,7 @@ final class GameControllerAdapter {
 
         let supported = controllers.first { isJoyCon($0) }
         let supportedID = supported.map(controllerID)
-        configureRightJoyConHIDFallback(for: supported)
+        configureHIDAdapters(for: supported)
         if supportedID != activeControllerID {
             stickFilters.removeAll()
             activeController = supported
@@ -140,6 +208,37 @@ final class GameControllerAdapter {
             if let supported, let supportedID {
                 attachHandlers(to: supported, controllerID: supportedID)
             }
+        }
+    }
+
+    private func configureHIDAdapters(for controller: GCController?) {
+        configureLeftJoyConHIDSupplement(for: controller)
+        configureRightJoyConHIDFallback(for: controller)
+    }
+
+    private func configureLeftJoyConHIDSupplement(for controller: GCController?) {
+        let requiresSupplement = controller.map {
+            side(for: $0) == .left
+                && $0.extendedGamepad == nil
+                && $0.microGamepad != nil
+        } ?? false
+
+        if requiresSupplement, !leftJoyConHIDAdapter.isRunning {
+            do {
+                try leftJoyConHIDAdapter.start()
+                usesLeftJoyConHIDSupplement = true
+                publishInputSourceStatus(
+                    "Using portrait GameController input plus raw left Joy-Con L/ZL."
+                )
+            } catch {
+                usesLeftJoyConHIDSupplement = false
+                publishInputSourceStatus(
+                    "Portrait GameController input is active; raw L/ZL status: \(error.localizedDescription)"
+                )
+            }
+        } else if !requiresSupplement, leftJoyConHIDAdapter.isRunning {
+            leftJoyConHIDAdapter.stop()
+            usesLeftJoyConHIDSupplement = false
         }
     }
 
@@ -181,7 +280,34 @@ final class GameControllerAdapter {
             productCategory: controller.productCategory,
             side: supported ? side(for: controller) : .unknown,
             profile: profileName(for: controller),
-            isSupported: supported
+            isSupported: supported,
+            battery: batteryStatus(for: controller)
+        )
+    }
+
+    private func batteryStatus(for controller: GCController) -> ControllerBatteryStatus? {
+        if side(for: controller) == .left, let leftJoyConRawBattery {
+            return leftJoyConRawBattery
+        }
+        guard let battery = controller.battery else { return nil }
+
+        let chargeState: ControllerBatteryChargeState
+        switch battery.batteryState {
+        case .unknown:
+            chargeState = .unknown
+        case .discharging:
+            chargeState = .discharging
+        case .charging:
+            chargeState = .charging
+        case .full:
+            chargeState = .full
+        @unknown default:
+            chargeState = .unknown
+        }
+
+        return ControllerBatteryStatus(
+            level: battery.batteryLevel,
+            chargeState: chargeState
         )
     }
 
@@ -270,11 +396,14 @@ final class GameControllerAdapter {
             )
         } else if let gamepad = controller.microGamepad {
             gamepad.allowsRotation = false
-            if !usesRightJoyConHIDFallback {
-                bind(gamepad.buttonA, to: .buttonA, controllerID: controllerID)
-                bind(gamepad.buttonX, to: .buttonX, controllerID: controllerID)
-            }
-            if side(for: controller) == .right {
+            let controllerSide = side(for: controller)
+            if controllerSide == .left, leftJoyConOrientation == .portrait {
+                attachLeftPortraitHandlers(to: controller, controllerID: controllerID)
+            } else if controllerSide == .right {
+                if !usesRightJoyConHIDFallback {
+                    bind(gamepad.buttonA, to: .buttonA, controllerID: controllerID)
+                    bind(gamepad.buttonX, to: .buttonX, controllerID: controllerID)
+                }
                 let inputs = Dictionary(
                     uniqueKeysWithValues: PortraitDirection.allCases.map { direction in
                         (
@@ -293,10 +422,58 @@ final class GameControllerAdapter {
                     controllerID: controllerID
                 )
             } else {
+                bind(gamepad.buttonA, to: .buttonA, controllerID: controllerID)
+                bind(gamepad.buttonX, to: .buttonX, controllerID: controllerID)
                 bind(gamepad.dpad.up, to: .dpadUp, controllerID: controllerID)
                 bind(gamepad.dpad.down, to: .dpadDown, controllerID: controllerID)
                 bind(gamepad.dpad.left, to: .dpadLeft, controllerID: controllerID)
                 bind(gamepad.dpad.right, to: .dpadRight, controllerID: controllerID)
+            }
+        }
+    }
+
+    private func attachLeftPortraitHandlers(
+        to controller: GCController,
+        controllerID: String
+    ) {
+        let profile = controller.physicalInputProfile
+        for physicalButton in LeftJoyConPhysicalButton.allCases {
+            bind(
+                profile.buttons[physicalButton.rawValue],
+                to: LeftJoyConPortraitMapping.input(for: physicalButton),
+                controllerID: controllerID
+            )
+        }
+
+        if let stick = profile.dpads["Direction Pad"] ?? controller.microGamepad?.dpad {
+            bindLeftPortraitStick(
+                stick,
+                key: "\(controllerID).left-portrait-stick",
+                controllerID: controllerID
+            )
+        }
+    }
+
+    private func bindLeftPortraitStick(
+        _ directionPad: GCControllerDirectionPad,
+        key: String,
+        controllerID: String
+    ) {
+        let orientation = leftJoyConOrientation
+        directionPad.valueChangedHandler = { [weak self] _, xValue, yValue in
+            let vector = LeftJoyConPortraitMapping.transform(
+                x: xValue,
+                y: yValue,
+                orientation: orientation
+            )
+            Task { @MainActor [weak self] in
+                guard self?.activeControllerID == controllerID else { return }
+                self?.handleStickVector(
+                    x: vector.x,
+                    y: vector.y,
+                    key: key,
+                    inputs: self?.stickInputs(left: true) ?? [:]
+                )
             }
         }
     }

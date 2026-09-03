@@ -40,6 +40,7 @@ The explicit framework search path is needed by the current standalone Command L
 Joy-Con Codex Controller runs as a menu-bar accessory, so it does not occupy a permanent Dock position. The red window close button closes the configuration window but intentionally leaves the companion process running so Joy-Con mappings can continue while another app is frontmost. While the process is active, the menu bar displays a controller icon with:
 
 - Joy-Con connection status
+- Battery percentage and charge state when macOS exposes `GCController.battery`
 - Test mode, live output, or Accessibility-blocked status
 - A Test Mode toggle that immediately controls shortcut suppression
 - **Open Controller Window** to restore the main window after it is closed
@@ -57,9 +58,56 @@ Posting keyboard shortcuts requires **Accessibility** permission:
 2. Enable the built app or the development host running it.
 3. If macOS requests **Input Monitoring** for a particular signed build or OS version, grant it under **Privacy & Security → Input Monitoring**.
 
+Ad-hoc local builds receive a new code-directory hash on every rebuild, so an
+enabled Accessibility row from an older build can target the wrong binary
+identity. Do not replace and launch local release bundles manually. Use
+`Scripts/install-local-release.sh` for every local upgrade; it installs the new
+bundle first, resets TCC in the correct order, registers the canonical path, and
+launches the new process with an explicit permission request. See
+[`Docs/Accessibility-Upgrades.md`](Docs/Accessibility-Upgrades.md) for the full
+procedure, verification receipt, recovery steps, and stable-signing guidance.
+
 Test mode is enabled on first launch. In test mode, controller inputs, the selected Default/Fn layer, resolved mappings, and known ChatGPT function descriptions are displayed, but no synthetic keyboard event is posted. Enabling test mode also releases any live hold-to-dictate key before output is suppressed.
 
 `GCController.shouldMonitorBackgroundEvents` is enabled so controller input can reach the app while Codex is frontmost, subject to macOS policy and the build’s signing context.
+
+The Controller card and menu-bar title read battery information from Apple's
+public `GCController.battery` API and refresh it every 30 seconds. A controller
+that does not expose battery data through macOS is shown as **Battery
+unavailable** rather than receiving an estimated value.
+
+For a single left Joy-Con, macOS may create a battery object whose level remains
+at `0.0`. The raw HID supplement therefore sends the no-op **Get Controller
+State** subcommand and reads the Joy-Con's five-step battery field from the
+`0x21` reply. Raw levels are labeled as approximate (for example,
+**High (≈75%) · On battery · Joy-Con HID**) instead of being presented as an
+exact percentage. The query preserves the current input-report mode and does
+not change mappings or controller firmware. Raw queries run on connection,
+manual rescan, and throttled physical activity; the 30-second UI refresh does
+not transmit background keep-alives, so battery display does not change the
+controller's idle-sleep behavior.
+
+## Single left Joy-Con orientation
+
+The controller card and Settings window include a **Left Joy-Con grip** selector.
+**Portrait — Minus at top** is the default. It reads the controller's dynamic
+physical input profile, translates Apple's horizontal A/B/X/Y labels back to
+the printed left D-pad directions, maps Menu/Home to Minus/Capture, maps the two
+reported micro-gamepad shoulders to SL/SR, and rotates the reported stick axes into portrait
+coordinates. **Sideways — rail at top** restores the earlier micro-gamepad path.
+
+For a single left Joy-Con, macOS reports the rail SL/SR buttons as the generic
+micro-gamepad shoulders. The app translates those two GameController fields to
+SL/SR. It also opens Nintendo vendor `0x057E`, product `0x2006` through IOKit
+and merges only raw L/ZL usages 15/16. Raw SL/SR usages 5/6 are ignored so one
+physical rail press produces exactly one logical event.
+
+For hardware discovery, the included logger defaults to the left Joy-Con:
+
+```sh
+swift run JoyConInputLogger          # left 0x2006
+swift run JoyConInputLogger --right  # right 0x2007
+```
 
 ## Default layered keyboard mappings
 
@@ -92,7 +140,7 @@ The mapping editor shows Default and Fn slots separately. Disabled slots say **D
 
 The editor also includes an interactive portrait Joy-Con diagram. Selecting a mapping or clicking a control on the diagram highlights its physical location in yellow. Pressing a connected Joy-Con control selects that mapping and shows a green live-input highlight, including individual stick directions and the duplicated SL/SR rail positions.
 
-These are ordinary keyboard events delivered to whichever application is frontmost. For example, `⌘⌥S`, `⌘W`, or `⌘N` can mean something different in another application. Focus ChatGPT before enabling live output; the companion does not automatically activate it or use a Codex API.
+These are ordinary keyboard events delivered to whichever application is frontmost. For example, `⌘⌥S`, `⌘W`, or `⌘N` can mean something different in another application. With **Focus Codex on stick movement** enabled, the first stick direction activates Codex and is consumed; subsequent directions use their mappings. The companion does not use a Codex API.
 
 On first launch, test mode is enabled and prevents every mapping from posting keyboard events. To use live output, turn off test mode and grant Accessibility permission. Because background controller monitoring remains active while the process is running, live mappings can continue after the main window is closed; use `⌘Q` or the app’s Quit command to stop the process completely.
 

@@ -8,6 +8,7 @@ public enum ShortcutEmissionPhase: Equatable, Sendable {
 
 public protocol ShortcutEmitting {
     func emit(_ shortcut: Shortcut, phase: ShortcutEmissionPhase) throws
+    func emit(_ scrollCommand: ScrollCommand) throws
 }
 
 public enum MappingDisposition: Equatable, Sendable {
@@ -18,6 +19,7 @@ public enum MappingDisposition: Equatable, Sendable {
     case layerActivated
     case layerReleased
     case coalesced
+    case deferred
     case suppressedByTestMode
     case emitted
     case failed(String)
@@ -142,16 +144,18 @@ public struct MappingEngine: Sendable {
                 disposition: .suppressedByTestMode
             )
         }
-        guard let shortcut = action.shortcut else {
-            return result(event, layer: layer, action: action, disposition: .disabled)
-        }
-
         do {
             switch action.kind {
             case .tap:
+                guard let shortcut = action.shortcut else {
+                    return result(event, layer: layer, action: action, disposition: .disabled)
+                }
                 try emitter.emit(shortcut, phase: .tap)
                 return result(event, layer: layer, action: action, disposition: .emitted)
             case .hold:
+                guard let shortcut = action.shortcut else {
+                    return result(event, layer: layer, action: action, disposition: .disabled)
+                }
                 var owners = holdOwners[shortcut, default: []]
                 let isFirstOwner = owners.isEmpty
                 if isFirstOwner {
@@ -167,6 +171,12 @@ public struct MappingEngine: Sendable {
                 )
             case .functionLayer:
                 return result(event, layer: layer, action: action, disposition: .layerActivated)
+            case .scrollUp, .scrollDown, .scrollToBottom:
+                guard let scrollCommand = action.scrollCommand else {
+                    return result(event, layer: layer, action: action, disposition: .disabled)
+                }
+                try emitter.emit(scrollCommand)
+                return result(event, layer: layer, action: action, disposition: .emitted)
             }
         } catch {
             return result(

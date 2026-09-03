@@ -23,9 +23,20 @@ struct MenuBarCompanionView: View {
             Label(status.outputSummary, systemImage: outputSystemImage)
                 .disabled(true)
 
+            if status.isControllerConnected {
+                if let battery = model.activeControllerBattery {
+                    Label(battery.summary, systemImage: battery.systemImage)
+                        .disabled(true)
+                } else {
+                    Label("Battery unavailable", systemImage: "battery.0")
+                        .disabled(true)
+                }
+            }
+
             Divider()
 
             Toggle("Test Mode", isOn: $model.testMode)
+            Toggle("Focus Codex on Stick Move", isOn: $model.focusCodexOnStickMove)
 
             Divider()
 
