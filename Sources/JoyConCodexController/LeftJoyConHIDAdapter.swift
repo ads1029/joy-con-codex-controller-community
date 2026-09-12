@@ -17,7 +17,7 @@ enum LeftJoyConHIDError: LocalizedError {
     }
 }
 
-/// Merges only the top L/ZL controls that are missing from Apple's single-left
+/// Merges the L/ZL shoulder controls and L3 stick click that are missing from Apple's single-left
 /// Joy-Con GameController profile. The rail SL/SR controls stay on the
 /// GameController path, preventing a physical press from being emitted twice.
 final class LeftJoyConHIDAdapter {
@@ -114,7 +114,7 @@ final class LeftJoyConHIDAdapter {
 
     func handleMatchedDevice(_ device: IOHIDDevice) {
         activeDevice = device
-        onStatus?("Left Joy-Con portrait input is active; raw L/ZL supplement attached.")
+        onStatus?("Left Joy-Con portrait input is active; raw L/ZL/L3 supplement attached.")
         requestBatteryStatus(force: true)
     }
 
@@ -125,7 +125,7 @@ final class LeftJoyConHIDAdapter {
             onBatteryStatus?(nil)
         }
         pressedUsages.removeAll()
-        onStatus?("Left Joy-Con raw L/ZL supplement disconnected.")
+        onStatus?("Left Joy-Con raw L/ZL/L3 supplement disconnected.")
     }
 
     func requestBatteryStatus(force: Bool = false) {

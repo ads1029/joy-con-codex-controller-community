@@ -8,6 +8,11 @@ A native macOS companion that turns an already paired Nintendo Switch Joy-Con in
 
 The companion is local and framework-only: no Codex API or network service is required.
 
+> **Project status: Maintenance** — Version 0.1.12 is the stable feature baseline.
+> New feature development is paused. Future work is limited to reproducible bug
+> fixes, macOS compatibility, security, packaging, and adjustments supported by
+> real controller usage. See [`Docs/Maintenance.md`](Docs/Maintenance.md).
+
 <p align="center">
   <img src="Assets/README/joy-con-codex-controller-poster.png" alt="Joy-Con Codex Controller default and function-layer shortcut mappings" width="820">
 </p>
@@ -187,3 +192,24 @@ Active changes are tracked under `openspec/changes`, while completed changes are
 ```sh
 openspec validate --all --strict
 ```
+
+## Maintenance status
+
+The project entered maintenance on 2026-09-13. Version 0.1.12 remains the
+supported baseline. The existing controller mapping, profile, menu-bar,
+Accessibility, battery, portrait-orientation, and raw-HID supplement features
+are considered feature-complete for the current scope.
+
+Maintenance releases must preserve the current safe defaults, include a focused
+regression test, keep documentation synchronized, and pass the release checks in
+[`Docs/Maintenance.md`](Docs/Maintenance.md). Library or framework upgrades alone
+do not reopen feature development.
+
+### 0.1.12: left stick click input fix
+
+Single-left micro-gamepad input now supplements raw HID button usage 11 as
+`leftStickPress`. Existing primary and function-layer profile actions are preserved.
+The extended-gamepad path already owns stick clicks and does not attach this
+supplement. Regression tests start at the raw usage mapping and verify primary
+scroll, ZL + click, release/repress, and Test Mode suppression. Physical controller
+delivery and actual Codex scrolling remain on-device maintenance checks.

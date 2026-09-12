@@ -228,12 +228,12 @@ final class GameControllerAdapter {
                 try leftJoyConHIDAdapter.start()
                 usesLeftJoyConHIDSupplement = true
                 publishInputSourceStatus(
-                    "Using portrait GameController input plus raw left Joy-Con L/ZL."
+                    "Using portrait GameController input plus raw left Joy-Con L/ZL/L3."
                 )
             } catch {
                 usesLeftJoyConHIDSupplement = false
                 publishInputSourceStatus(
-                    "Portrait GameController input is active; raw L/ZL status: \(error.localizedDescription)"
+                    "Portrait GameController input is active; raw L/ZL/L3 status: \(error.localizedDescription)"
                 )
             }
         } else if !requiresSupplement, leftJoyConHIDAdapter.isRunning {
