@@ -13,6 +13,23 @@ and extends that workflow with battery reporting, raw-HID supplementation,
 scrolling, double-tap and repeat behavior, Codex focus behavior, and local
 installation/accessibility guidance.
 
+## Upstream source
+
+This project is based on the original [`Jinjiang/joy-con-codex-micro`](https://github.com/Jinjiang/joy-con-codex-micro) repository.
+
+- **Upstream repository:** <https://github.com/Jinjiang/joy-con-codex-micro>
+- **Fork baseline:** upstream `0.1.12`
+- **Relationship:** this is an independent community-maintained fork, not an
+  official upstream release
+- **Inherited behavior:** basic single-Joy-Con support, mapping, and the
+  original controller workflow come from upstream
+- **Fork-specific work:** battery reporting, raw-HID supplementation,
+  scrolling, double-tap/repeat behavior, Codex focus behavior, and packaging
+  and Accessibility guidance
+
+Changes in this fork should preserve the original attribution and clearly
+separate inherited behavior from fork-specific changes.
+
 ## License and attribution
 
 The upstream repository currently has no detected `LICENSE` file. This fork
