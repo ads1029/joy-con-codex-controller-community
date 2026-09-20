@@ -3,7 +3,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "joy-con-codex-controller",
+    name: "joy-con-codex-controller-community",
     platforms: [
         .macOS(.v14),
     ],
@@ -13,7 +13,7 @@ let package = Package(
             targets: ["JoyConCodexCore"]
         ),
         .executable(
-            name: "JoyConCodexController",
+            name: "JoyConCodexControllerCommunity",
             targets: ["JoyConCodexController"]
         ),
     ],

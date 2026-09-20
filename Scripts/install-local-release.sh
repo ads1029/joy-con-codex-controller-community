@@ -2,8 +2,8 @@
 
 set -euo pipefail
 
-application_name="JoyConCodexController"
-expected_bundle_id="com.jinjiang.JoyConCodexController"
+application_name="JoyConCodexControllerCommunity"
+expected_bundle_id="com.ads1029.JoyConCodexControllerCommunity"
 launch_services="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 
 if [[ $# -lt 1 || $# -gt 2 ]]; then

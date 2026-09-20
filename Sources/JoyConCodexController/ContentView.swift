@@ -38,7 +38,7 @@ struct ContentView: View {
     private var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Joy-Con Codex Controller")
+                Text("Joy-Con Codex Controller Community")
                     .font(.largeTitle.bold())
                 Text("A tactile shortcut companion for macOS")
                     .foregroundStyle(.secondary)

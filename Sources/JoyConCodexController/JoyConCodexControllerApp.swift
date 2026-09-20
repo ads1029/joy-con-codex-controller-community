@@ -28,7 +28,7 @@ struct JoyConCodexControllerApp: App {
     @StateObject private var model = AppModel()
 
     var body: some Scene {
-        Window("Joy-Con Codex Controller", id: AppSceneID.mainWindow) {
+        Window("Joy-Con Codex Controller Community", id: AppSceneID.mainWindow) {
             ContentView()
                 .environmentObject(model)
                 .frame(minWidth: 1_040, minHeight: 760)
@@ -46,7 +46,7 @@ struct JoyConCodexControllerApp: App {
                         .monospacedDigit()
                 }
             }
-            .accessibilityLabel("Joy-Con Codex Controller")
+            .accessibilityLabel("Joy-Con Codex Controller Community")
         }
         .menuBarExtraStyle(.menu)
 

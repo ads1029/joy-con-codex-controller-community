@@ -1,26 +1,42 @@
-# joy-con-codex-controller
+# Joy-Con Codex Controller Community
+
+> Community-maintained fork of [`Jinjiang/joy-con-codex-micro`](https://github.com/Jinjiang/joy-con-codex-micro), based on the upstream 0.1.12 baseline. This is not the upstream project.
 
 <p align="center">
-  <img src="Assets/AppIcon/AppIcon.png" alt="Joy-Con Codex Controller app icon" width="180">
+  <img src="Assets/AppIcon/AppIcon.png" alt="Joy-Con Codex Controller Community app icon" width="180">
 </p>
 
 A native macOS companion that turns an already paired Nintendo Switch Joy-Con into a configurable keyboard-shortcut controller.
 
+Basic single-Joy-Con support is inherited from upstream. This fork maintains
+and extends that workflow with battery reporting, raw-HID supplementation,
+scrolling, double-tap and repeat behavior, Codex focus behavior, and local
+installation/accessibility guidance.
+
+## License and attribution
+
+The upstream repository currently has no detected `LICENSE` file. This fork
+retains the upstream URL, author attribution, and history. No independent
+license is asserted for inherited source; public redistribution of modified
+source or builds remains subject to explicit upstream permission or a clear
+license.
+
 The companion is local and framework-only: no Codex API or network service is required.
 
-> **Project status: Maintenance** — Version 0.1.12 is the stable feature baseline.
+> **Project status: Community maintenance** — Version 0.1.12 is the stable
+> upstream/fork baseline. The next fork release will be versioned separately.
 > New feature development is paused. Future work is limited to reproducible bug
 > fixes, macOS compatibility, security, packaging, and adjustments supported by
 > real controller usage. See [`Docs/Maintenance.md`](Docs/Maintenance.md).
 
 <p align="center">
-  <img src="Assets/README/joy-con-codex-controller-poster.png" alt="Joy-Con Codex Controller default and function-layer shortcut mappings" width="820">
+  <img src="Assets/README/joy-con-codex-controller-poster.png" alt="Joy-Con Codex Controller Community default and function-layer shortcut mappings" width="820">
 </p>
 
 ## App interface
 
 <p align="center">
-  <img src="Assets/README/joy-con-codex-controller-app.png" alt="Joy-Con Codex Controller macOS configuration window" width="920">
+  <img src="Assets/README/joy-con-codex-controller-app.png" alt="Joy-Con Codex Controller Community macOS configuration window" width="920">
 </p>
 
 ## Requirements
@@ -35,21 +51,21 @@ The project uses Swift Package Manager as its source of truth. Open `Package.swi
 ```sh
 swift build
 swift test -Xswiftc -F -Xswiftc "$(xcode-select -p)/Library/Developer/Frameworks"
-swift run JoyConCodexController
+swift run JoyConCodexControllerCommunity
 ```
 
 The explicit framework search path is needed by the current standalone Command Line Tools image so SwiftPM’s generated runner can discover the bundled Swift Testing framework. A full matching Xcode toolchain normally supports plain `swift test`.
 
 ## Background operation and menu bar
 
-Joy-Con Codex Controller runs as a menu-bar accessory, so it does not occupy a permanent Dock position. The red window close button closes the configuration window but intentionally leaves the companion process running so Joy-Con mappings can continue while another app is frontmost. While the process is active, the menu bar displays a controller icon with:
+Joy-Con Codex Controller Community runs as a menu-bar accessory, so it does not occupy a permanent Dock position. The red window close button closes the configuration window but intentionally leaves the companion process running so Joy-Con mappings can continue while another app is frontmost. While the process is active, the menu bar displays a controller icon with:
 
 - Joy-Con connection status
 - Battery percentage and charge state when macOS exposes `GCController.battery`
 - Test mode, live output, or Accessibility-blocked status
 - A Test Mode toggle that immediately controls shortcut suppression
 - **Open Controller Window** to restore the main window after it is closed
-- **Settings…** and **Quit Joy-Con Codex Controller** actions
+- **Settings…** and **Quit Joy-Con Codex Controller Community** actions
 
 Use the menu’s Quit action or `Command-Q` to terminate the process and stop controller monitoring completely.
 
@@ -204,6 +220,10 @@ Maintenance releases must preserve the current safe defaults, include a focused
 regression test, keep documentation synchronized, and pass the release checks in
 [`Docs/Maintenance.md`](Docs/Maintenance.md). Library or framework upgrades alone
 do not reopen feature development.
+
+The community-fork workflow, attribution rules, identity changes, upstream
+sync policy, and release sequence are tracked in
+[`Docs/Community-Fork-Maintenance.md`](Docs/Community-Fork-Maintenance.md).
 
 ### 0.1.12: left stick click input fix
 

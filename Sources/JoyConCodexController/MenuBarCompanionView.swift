@@ -56,7 +56,7 @@ struct MenuBarCompanionView: View {
             Button {
                 NSApplication.shared.terminate(nil)
             } label: {
-                Label("Quit Joy-Con Codex Controller", systemImage: "power")
+                Label("Quit Joy-Con Codex Controller Community", systemImage: "power")
             }
             .keyboardShortcut("q")
         }

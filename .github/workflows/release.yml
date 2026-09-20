@@ -40,11 +40,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ github.ref_name }}
         run: |
-          archive="dist/JoyConCodexController-$RELEASE_VERSION-macOS-arm64.zip"
+          archive="dist/JoyConCodexControllerCommunity-$RELEASE_VERSION-macOS-arm64.zip"
           gh release create "$RELEASE_VERSION" \
             "$archive#macOS Apple silicon application" \
             "$archive.sha256#SHA-256 checksum" \
             --verify-tag \
-            --title "Joy-Con Codex Controller $RELEASE_VERSION" \
+            --title "Joy-Con Codex Controller Community $RELEASE_VERSION" \
             --generate-notes \
             --notes "Built for Apple silicon Macs. This build is ad-hoc signed and has not been notarized by Apple."

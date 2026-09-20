@@ -28,7 +28,7 @@ The application that calls
 at the canonical installed path:
 
 ```text
-~/Applications/JoyConCodexController.app
+~/Applications/JoyConCodexControllerCommunity.app
 ```
 
 Do not launch the bundle under `dist/`, a backup bundle, or an older build and
@@ -42,7 +42,7 @@ Build the release, then install it with the dedicated script:
 ```bash
 bash Scripts/build-release.sh <VERSION>
 bash Scripts/install-local-release.sh \
-  "dist/JoyConCodexController.app"
+  "dist/JoyConCodexControllerCommunity.app"
 ```
 
 The installer performs this ordered transaction:
@@ -71,7 +71,7 @@ installation step fails before completion.
 
 When System Settings opens:
 
-1. Find the single `JoyConCodexController` row.
+1. Find the single `Joy-Con Codex Controller Community` row.
 2. Enable it. If it is already enabled immediately after a reset, toggle it off
    once and back on.
 3. Return to the controller and choose **Refresh Permission**.
@@ -82,7 +82,7 @@ When System Settings opens:
 Inspect the receipt created by the installer:
 
 ```bash
-ls -t "$HOME/Library/Application Support/JoyConCodexController/AccessibilityInstallReceipts" \
+ls -t "$HOME/Library/Application Support/JoyConCodexControllerCommunity/AccessibilityInstallReceipts" \
   | head -1
 ```
 
@@ -91,7 +91,7 @@ and its `permission_target_cdhash` must match:
 
 ```bash
 codesign -d --verbose=4 \
-  "$HOME/Applications/JoyConCodexController.app" 2>&1 \
+    "$HOME/Applications/JoyConCodexControllerCommunity.app" 2>&1 \
   | grep '^CDHash='
 ```
 
@@ -103,7 +103,7 @@ full ordering:
 
 ```bash
 bash Scripts/install-local-release.sh \
-  "dist/JoyConCodexController.app"
+  "dist/JoyConCodexControllerCommunity.app"
 ```
 
 Then enable the newly prompted row and use **Refresh Permission**. Avoid opening

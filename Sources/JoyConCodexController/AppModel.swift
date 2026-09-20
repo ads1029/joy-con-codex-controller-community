@@ -199,7 +199,7 @@ final class AppModel: ObservableObject {
         panel.allowedContentTypes = [.json]
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
-        panel.message = "Choose a Joy-Con Codex Controller profile."
+        panel.message = "Choose a Joy-Con Codex Controller Community profile."
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
         do {
