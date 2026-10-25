@@ -1,133 +1,106 @@
-> Unified candidate: update only after explicit approval. Its bundle ID is
-> `com.ads1029.JoyConUnifiedController`, so it has separate Accessibility identity
-> and preferences. The approved candidate path in this session is
-> `/Applications/JoyConUnifiedController.app`; backups and receipts stay under
-> `~/Library/Application Support/JoyConUnifiedController/`. Reset only this
-> candidate's Accessibility service after registering that canonical path.
-> No old-controller permission is reset. The Community paths and commands below
-> are historical guidance, not instructions to reinstall the old controller.
-> A switched-on permission row still requires physical focus/recording acceptance.
+# Accessibility upgrades and recovery
 
-# Accessibility permission after local app upgrades
+Applies to **Joy-Con Unified Controller 0.2.11**. The bundle identifier is
+`com.ads1029.JoyConUnifiedController`. Do not reset the original controller's
+permissions or grant a backup/dist copy by mistake.
 
-## Why an upgrade needs a fresh permission grant
+## Canonical installation
 
-Local release bundles are currently ad-hoc signed. Their designated requirement
-is the build's exact code-directory hash, for example:
+Use one installed path for both runtime and permission requests. The local
+accepted installation uses:
 
 ```text
-# designated => cdhash H"<CURRENT_CDHASH>"
-Signature=adhoc
-TeamIdentifier=not set
+/Applications/JoyConUnifiedController.app
 ```
 
-Rebuilding the executable changes that `CDHash`. macOS TCC therefore treats the
-new bundle as a new Accessibility client even when its bundle identifier and
-installed path are unchanged. An old enabled row can still refer to the previous
-hash and does not establish trust for the new process.
+The installer defaults to `~/Applications/JoyConUnifiedController.app` when its
+second argument is omitted. That is a supported alternative, but upgrades must
+keep using the same destination. Do not run both copies.
 
-The permanent distribution fix is signing every release with the same Apple
-Development or Developer ID identity and a stable designated requirement. Until
-that signing identity is available, every ad-hoc upgrade must use the refresh
-procedure below.
+## Why permission can break after a rebuild
 
-## Required invariant
+Current packages are ad-hoc signed. A changed executable can change the code
+hash used by macOS Accessibility/TCC. An enabled row for the previous binary
+does not prove the new process is trusted. Rebuilding an unchanged binary need
+not change its hash. Stable signing with an appropriate Apple identity is a
+future distribution task; these builds are not notarized.
 
-The application that calls
-`AXIsProcessTrustedWithOptions(prompt: true)` must be the exact verified bundle
-at the canonical installed path:
+## Upgrade
 
-```text
-~/Applications/JoyConCodexControllerCommunity.app
-```
+Build first, then explicitly install to your chosen canonical path:
 
-Do not launch the bundle under `dist/`, a backup bundle, or an older build and
-then grant its prompt. Those paths can send the permission decision to a stale
-hash.
-
-## Standard upgrade command
-
-Build the release, then install it with the dedicated script:
-
-```bash
-bash Scripts/build-release.sh <VERSION>
+```sh
+bash Scripts/build-release.sh 0.2.11
 bash Scripts/install-local-release.sh \
-  "dist/JoyConCodexControllerCommunity.app"
+  "dist/JoyConUnifiedController.app" \
+  "/Applications/JoyConUnifiedController.app"
 ```
 
-The installer performs this ordered transaction:
+The installer:
 
-1. Verify the release signature, bundle identifier, binary SHA-256, `CDHash`,
-   and designated requirement.
-2. Stop the currently running controller.
-3. Unregister the old canonical bundle from LaunchServices.
-4. Preserve it under `Application Support` using a non-`.app` backup name.
-5. Copy and re-verify the new bundle at the canonical installed path.
-6. Unregister the `dist/` source so it is not selected as the permission target.
-7. Register only the canonical new bundle with LaunchServices. This must happen
-   before the bundle-ID-based TCC reset, or `tccutil` returns `-10814`.
-8. Run `tccutil reset Accessibility <BUNDLE_ID>` **after** the new bundle is in
-   place, registered, and the old process is stopped.
-9. Launch that exact bundle with `--request-accessibility`; the new process then
-   calls `AXIsProcessTrustedWithOptions(prompt: true)`.
-10. Open System Settings at **Privacy & Security → Accessibility**.
-11. Write a receipt containing the installed path, SHA-256, `CDHash`, designated
-    requirement, PID, and running executable.
+1. Checks bundle identity, signature and executable hashes; rejects replacement
+   of a different application identity.
+2. Stops the unified process and preserves the previous bundle under a non-app
+   backup name.
+3. Stages, verifies and installs the replacement.
+4. Unregisters the build source and registers the canonical installed path.
+5. Resets only `Accessibility` for `com.ads1029.JoyConUnifiedController`.
+6. Starts that exact bundle with `--request-accessibility`, opens System Settings
+   and writes an installation receipt.
 
-The script preserves the previous bundle and restores it automatically when an
-installation step fails before completion.
+A failure after preserving the previous bundle triggers a rollback attempt;
+review the reported result. Installation does not edit the legacy profile or
+supply the user's macOS permission decision.
 
 ## Grant and verify
 
-When System Settings opens:
+1. In **System Settings → Privacy & Security → Accessibility**, enable the
+   JoyConUnifiedController entry for the installed app. If a stale enabled row
+   persists after upgrade, turn it off and on again.
+2. Return to the controller and choose **Request / Refresh**.
+3. Confirm **Accessibility permission granted**.
+4. Keep Test Mode on while checking inputs. Then disable it, focus the selected
+   target, release all controls and test scrolling. For Claude use its Code page.
 
-1. Find the single `Joy-Con Codex Controller Community` row.
-2. Enable it. If it is already enabled immediately after a reset, toggle it off
-   once and back on.
-3. Return to the controller and choose **Refresh Permission**.
-4. Confirm the orange `Accessibility permission required` status changes to the
-   live-output state.
-5. Test one harmless mapped action before starting normal use.
+A successful permission status is separate from correct app/prompt routing and
+physical controller acceptance. Input Monitoring, if requested by macOS for the
+build, is also a separate system permission. Claude manages its own microphone
+permission; the controller does not capture audio.
 
-Inspect the receipt created by the installer:
+## Receipts, backups and verification
 
-```bash
-ls -t "$HOME/Library/Application Support/JoyConCodexControllerCommunity/AccessibilityInstallReceipts" \
-  | head -1
+```text
+~/Library/Application Support/JoyConUnifiedController/AccessibilityInstallReceipts/
+~/Library/Application Support/JoyConUnifiedController/UpgradeBackups/
 ```
 
-The receipt's `running_executable` must point to the canonical installed path,
-and its `permission_target_cdhash` must match:
+The installer receipt records `installed_app`, version, binary SHA-256,
+`cdhash`, designated requirement, PID and `running_executable`. Compare its
+canonical path and hash with the installed bundle:
 
-```bash
-codesign -d --verbose=4 \
-    "$HOME/Applications/JoyConCodexControllerCommunity.app" 2>&1 \
-  | grep '^CDHash='
+```sh
+codesign --verify --deep --strict "/Applications/JoyConUnifiedController.app"
+codesign -d --verbose=4 "/Applications/JoyConUnifiedController.app" 2>&1
+shasum -a 256 \
+  "/Applications/JoyConUnifiedController.app/Contents/MacOS/JoyConUnifiedController"
 ```
 
-## Recovery when the orange status persists
+Use your actual installed path if different. Receipts can contain local paths
+and process details; redact them before posting publicly.
 
-Rerun the installer against the already-built release bundle. It is intentionally
-safe to use as a permission refresh because it keeps a backup and repeats the
-full ordering:
+## If output remains blocked
 
-```bash
-bash Scripts/install-local-release.sh \
-  "dist/JoyConCodexControllerCommunity.app"
-```
+- Quit duplicate controller copies and other known controller utilities.
+- Confirm the running app uses the same path as the receipt and permission grant.
+- Retry **Request / Refresh**, then the selected target's Focus action.
+- If permission remains stale, rerun the installer against the built release
+  using the same explicit destination, and enable the renewed row.
+- Read the controller's **Feedback** text. A missing Claude Code tree or ambiguous
+  prompt is a target-readiness issue, not proof of a TCC failure.
+- For Codex/ChatGPT scrolling, `mode=ax` identifies semantic routing and
+  `mode=legacy-window` identifies the compatibility point. Neither proves that
+  the page moved; test a long conversation physically.
 
-Then enable the newly prompted row and use **Refresh Permission**. Avoid opening
-or granting a copy from `dist/`, `.codex/`, an archive extraction directory, or
-`UpgradeBackups/`.
-
-## Release checklist
-
-- [ ] Release bundle passes `codesign --verify --deep --strict`.
-- [ ] Installer reports identical source and installed SHA-256 / `CDHash`.
-- [ ] Old process is stopped before the TCC reset.
-- [ ] TCC reset occurs after the new bundle reaches the canonical path.
-- [ ] New canonical process launches with `--request-accessibility`.
-- [ ] Receipt PID and executable path match the canonical bundle.
-- [ ] System Settings shows one current controller row.
-- [ ] App reports live Accessibility trust after **Refresh Permission**.
-- [ ] Rollback bundle and user mapping profile remain preserved.
+Avoid granting copies in `dist/`, archive extraction directories or
+`UpgradeBackups/`. Re-record the desktop layout if its selected window was closed
+or destinations changed. Do not repeatedly reset unrelated applications' grants.

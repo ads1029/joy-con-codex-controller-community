@@ -1,67 +1,77 @@
-# Unified candidate development (updated 2026-10-25)
+# Maintenance and release policy
 
-Active development is reopened for approved candidate **0.2.11**: one controller
-for Codex / Claude Desktop Code with ZL + Capture, preserving ordinary Capture
-and disabling SL/SR. See [Unified-Controller.md](Unified-Controller.md).
-The unified candidate is installed separately; the original app and configuration
-remain preserved. The maintenance
-policy below describes the historical 0.1.12 stable baseline; the candidate is
-not promoted stable until the physical and native integration gates pass.
+Updated 2026-10-25. The original **0.1.12** remains the historical maintenance
+baseline. Active development is reopened for **0.2.11**, the unified Codex /
+Claude Desktop Code candidate. It is installed separately; it has not been
+promoted to a stable public release.
 
-# Maintenance policy
+## Scope
 
-## Status
+Maintain controller input, mapping/persistence, target isolation, prompt
+selection, desktop compatibility, accessibility, packaging and documentation.
+New integrations, unrelated controller families and network services need a
+separate scope decision. Preserve upstream attribution, legacy profiles and the
+original installed controller.
 
-- Lifecycle: **maintenance**
-- Effective date: 2026-09-13
-- Stable feature baseline: **0.1.12**
-- Source of truth: this Git repository and its tagged release source
-- Supported platform: Apple silicon Mac running macOS 14 or newer
+See [the acceptance contract](Unified-Controller.md) for current features and
+[the fork policy](Community-Fork-Maintenance.md) for attribution/release limits.
 
-The planned first-release scope is complete. Routine work now keeps the existing
-controller workflow reliable instead of expanding the product surface.
+## Change procedure
 
-## Accepted maintenance work
+1. Describe the observable defect or behavior, app/macOS versions and input path.
+2. Keep the change narrow. Add or extend a focused regression for a reproducible
+   bug or critical new behavior where automation can establish it.
+3. Update relevant README, OpenSpec and operating instructions.
+4. Run affected checks while iterating. For code/release changes, complete the
+   final checks below; document unavailable tools explicitly.
+5. Report physical/native results independently of unit tests and builds.
 
-- Reproducible controller input, mapping, persistence, or lifecycle defects
-- Compatibility repairs required by a supported macOS or Swift release
-- Security, privacy, signing, notarization, and packaging corrections
-- Small mapping adjustments justified by observed day-to-day controller use
-- Documentation corrections that keep behavior and operating procedures aligned
+Documentation-only changes need link, example, metadata and whitespace checks;
+they do not require rebuilding, reinstalling or resetting permissions.
 
-New integrations, speculative shortcuts, unrelated controller families, network
-services, and rich Codex status features require an explicit decision to reopen
-active development.
+## Final checks for code and release candidates
 
-## Required change procedure
+```sh
+swift test
+# When the CLI is installed:
+openspec validate --all --strict
+bash Scripts/build-release.sh 0.2.11
+codesign --verify --deep --strict dist/JoyConUnifiedController.app
+(cd dist && shasum -a 256 -c JoyConUnifiedController-0.2.11-macOS-arm64.zip.sha256)
+git diff --check
+```
 
-1. Record the observed problem and affected hardware or macOS version.
-2. Add or update a focused regression test where automation is possible.
-3. Keep the README, OpenSpec, and operational documentation synchronized.
-4. Run `swift test`.
-5. Run `openspec validate --all --strict` when `openspec` is available.
-6. Build the candidate with `bash Scripts/build-release.sh <version>`.
-7. Verify the app signature, archive checksum, and a real-controller smoke test
-   before promoting a new stable version.
+Replace the version/architecture for a future candidate. Verify installed hashes
+against the built bundle when testing an upgrade, and keep a recoverable backup.
+The current 0.2.11 record is **114 tests in 19 suites passed**, release/signature/
+checksum checks passed; OpenSpec strict validation was not run because its CLI
+was unavailable. This is a recorded result, not a guarantee for later commits.
 
-## Stable-baseline acceptance
+## Physical smoke checks
 
-Version 0.1.12 is accepted as the maintenance baseline when all automated Swift
-tests pass, the release bundle builds, `codesign --verify --deep --strict` passes,
-and the generated archive checksum matches. Hardware-specific behavior remains a
-manual smoke check because CI does not have an attached Joy-Con.
+| Area | Check |
+| --- | --- |
+| Input | Intended device, portrait/sideways orientation, L/ZL, stick click and disabled SL/SR |
+| Suppression | Test Mode emits no mappings or automatic window moves |
+| Switching | ZL+Capture changes target; held recording releases; neutral controls are required |
+| Ordinary actions | Capture single/double, repeat boundaries, dictation start/stop, scrolling and bottom |
+| Claude panes | ZL+fresh left/right selects the correct input; recording/scrolling follow it |
+| Codex compatibility | Sidebar chat navigation and panel shortcuts match the installed app |
+| Connection | Reconnect and launch-with-connected restore the selected desktop/windows and show one HUD |
+| Failures | Closed window, deleted desktop, changed display, missing app or denied permission produce visible errors |
+| Lifecycle | Background input, battery reporting, main-window close and clean quit |
 
-## Manual smoke checklist
+Right-controller and complex multi-pane behavior need their own acceptance.
+Do not carry an older app version's native results forward without qualification.
 
-- Pair and connect the intended left or right Joy-Con.
-- Confirm portrait/sideways directions and SL/SR/L/ZL inputs.
-- Confirm L3, including its Default and Fn mappings.
-- Confirm Test Mode suppresses output.
-- Confirm live shortcuts work after Accessibility permission is granted.
-- Confirm background input, menu-bar status, battery status, and clean quit.
+## Publishing
 
-## Reopening criteria
+Numeric `X.Y.Z` tag pushes trigger `.github/workflows/release.yml`, which builds
+and publishes an ad-hoc-signed Apple-silicon GitHub Release. A normal branch push
+does not publish a release. Do not create a tag merely to save a candidate.
 
-Move the project back to active development only when a named release has an
-approved feature goal, acceptance tests, and an owner. A backlog idea by itself
-does not change the maintenance status.
+Before publishing, resolve the recorded attribution/license gate, review release
+notes and remaining hardware checks, align app metadata/build version, verify
+artifacts, and complete signing/notarization decisions for the intended audience.
+See [NOTICE.md](../NOTICE.md). This documentation update does not resolve that
+gate or claim a public release.
