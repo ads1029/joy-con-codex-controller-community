@@ -1,6 +1,7 @@
 {
-  "applicationVersion": "0.1.12",
-  "applicationSupportDirectory": "JoyConCodexController",
+  "applicationVersion": "0.2.11",
+  "applicationSupportDirectory": "JoyConUnifiedController",
   "profileSchemaVersion": 2,
-  "project": "joy-con-codex-controller-community"
+  "project": "joy-con-unified-controller",
+  "preferenceDomain": "com.ads1029.JoyConUnifiedController"
 }

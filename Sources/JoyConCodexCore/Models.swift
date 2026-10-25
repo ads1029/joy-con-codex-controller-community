@@ -153,6 +153,8 @@ public enum KeyCatalog {
         .init(keyCode: 29, label: "0"),
         .init(keyCode: 33, label: "["),
         .init(keyCode: 30, label: "]"),
+        .init(keyCode: 41, label: ";"),
+        .init(keyCode: 50, label: "`"),
         .init(keyCode: 49, label: "Space"),
         .init(keyCode: 36, label: "Return"),
         .init(keyCode: 48, label: "Tab"),
@@ -581,6 +583,16 @@ public enum CodexShortcutCatalog {
     }
 
     private static let descriptions: [Shortcut: String] = [
+        Shortcut(keyCode: 33, displayLabel: "[", modifiers: [.command, .option]):
+            "Previous sidebar item / chat",
+        Shortcut(keyCode: 30, displayLabel: "]", modifiers: [.command, .option]):
+            "Next sidebar item / chat",
+        Shortcut(keyCode: 1, displayLabel: "S", modifiers: [.command, .shift]):
+            "Toggle sidebar",
+        Shortcut(keyCode: 14, displayLabel: "E", modifiers: [.command, .shift]):
+            "Toggle navigation panel",
+        Shortcut(keyCode: 0, displayLabel: "A", modifiers: [.command, .shift]):
+            "Archive current chat",
         Shortcut(keyCode: 36, displayLabel: "Return"): "Enter / confirm",
         Shortcut(keyCode: 53, displayLabel: "Escape"): "Cancel or dismiss",
         Shortcut(keyCode: 45, displayLabel: "N", modifiers: [.command]): "New chat",

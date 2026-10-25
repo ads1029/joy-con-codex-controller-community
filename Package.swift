@@ -13,7 +13,7 @@ let package = Package(
             targets: ["JoyConCodexCore"]
         ),
         .executable(
-            name: "JoyConCodexControllerCommunity",
+            name: "JoyConUnifiedController",
             targets: ["JoyConCodexController"]
         ),
     ],

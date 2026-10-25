@@ -2,8 +2,8 @@
 
 set -euo pipefail
 
-application_name="JoyConCodexControllerCommunity"
-expected_bundle_id="com.ads1029.JoyConCodexControllerCommunity"
+application_name="JoyConUnifiedController"
+expected_bundle_id="com.ads1029.JoyConUnifiedController"
 launch_services="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 
 if [[ $# -lt 1 || $# -gt 2 ]]; then
@@ -28,6 +28,15 @@ installed_app="$installed_parent/$(basename "$installed_app")"
 if [[ "$source_app" == "$installed_app" ]]; then
     echo "Release source and installed destination must be different paths." >&2
     exit 64
+fi
+
+# Even an explicit destination must never replace the user's original controller.
+if [[ -e "$installed_app" ]]; then
+    destination_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$installed_app/Contents/Info.plist" 2>/dev/null || true)"
+    if [[ "$destination_id" != "$expected_bundle_id" ]]; then
+        echo "Refusing to replace another application: $installed_app" >&2
+        exit 65
+    fi
 fi
 
 bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$source_app/Contents/Info.plist")"

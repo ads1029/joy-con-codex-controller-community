@@ -11,10 +11,16 @@ final class AppModel: ObservableObject {
     @Published private(set) var statusMessage = "Starting controller discovery…"
     @Published private(set) var feedbackMessage = "Visual feedback is ready."
     @Published private(set) var accessibilityTrusted = false
+    @Published private(set) var selectedTarget: DesktopTarget = .codex
+    @Published private(set) var activationInProgress = false
+    @Published private(set) var desktopLayoutMessage = "尚未记录桌面布局"
+    @Published private(set) var restoringDesktopLayout = false
+    @Published private(set) var desktopLayoutCandidates: [DesktopLayoutCandidate] = []
+    @Published var desktopWindowSelections: [DesktopTarget: DesktopWindowIdentity] = [:]
     @Published var profile: MappingProfile
     @Published var leftJoyConOrientation: SingleJoyConOrientation {
         didSet {
-            userDefaults.set(
+            userDefaults?.set(
                 leftJoyConOrientation.rawValue,
                 forKey: Self.leftJoyConOrientationKey
             )
@@ -22,47 +28,67 @@ final class AppModel: ObservableObject {
             adapter.setLeftJoyConOrientation(leftJoyConOrientation)
         }
     }
-    @Published var focusCodexOnStickMove: Bool {
+    @Published var focusTargetOnStickMove: Bool {
         didSet {
-            userDefaults.set(focusCodexOnStickMove, forKey: Self.focusCodexOnStickMoveKey)
+            userDefaults?.set(focusTargetOnStickMove, forKey: Self.focusTargetOnStickMoveKey)
         }
     }
     @Published var testMode: Bool {
         didSet {
-            userDefaults.set(testMode, forKey: Self.testModeKey)
-            if testMode {
-                releaseKeyboardState(reason: "Test mode enabled")
-            } else {
-                mappingEngine.resetPressedState()
+            userDefaults?.set(testMode, forKey: Self.testModeKey)
+            activationTask?.cancel()
+            cancelDesktopRestore()
+            activationInProgress = false
+            activationFailureMessage = nil
+            do {
+                try session.outputModeChanged(emitter: emitter)
+                feedbackMessage = testMode
+                    ? "Test mode enabled. No input will be sent."
+                    : "Live output enabled. Focus the selected app and release all controls before pressing again."
+            } catch {
+                feedbackMessage = "Output mode change blocked: \(error.localizedDescription)"
             }
         }
     }
 
     private static let testModeKey = "JoyConCodexController.testMode"
-    private static let focusCodexOnStickMoveKey = "JoyConCodexController.focusCodexOnStickMove"
+    private static let focusTargetOnStickMoveKey = "JoyConCodexController.focusTargetOnStickMove"
     private static let leftJoyConOrientationKey = "JoyConCodexController.leftJoyConOrientation"
-    private static let codexBundleIdentifier = "com.openai.codex"
     private static let requestAccessibilityLaunchArgument = "--request-accessibility"
 
     private let adapter: GameControllerAdapter
     private let emitter: CoreGraphicsShortcutEmitter
-    private let profileStore: ProfileStore?
-    private let userDefaults: UserDefaults
-    private var mappingEngine = MappingEngine()
-    private var repeatTasks: [ControllerInput: Task<Void, Never>] = [:]
-    private var tapSequenceRecognizer = TapSequenceRecognizer()
-    private var pendingSingleTapTasks: [ControllerInput: Task<Void, Never>] = [:]
-    private var pendingSingleTapEvents: [ControllerInput: ControllerEvent] = [:]
-
-    init(userDefaults: UserDefaults = .standard) {
+    private let desktopLayout: DesktopLayoutController
+    private let codingHUD = CodingModeHUD()
+    private var connectionTracker = ControllerConnectionTracker()
+    private var desktopRestoreTask: Task<Void, Never>?
+    private var desktopRestoreID: UUID?
+    private var profileStore: ProfileStore?
+    private var unifiedStore: UnifiedProfileStore?
+    private var session = UnifiedControllerSession()
+    private var activationTask: Task<Void, Never>?
+    private var activationFailureMessage: String?
+    private var mappingFailureMessage: String?
+    private var clockTask: Task<Void, Never>?
+    private let userDefaults: UserDefaults?
+    init(userDefaults injectedDefaults: UserDefaults? = nil) {
+        let userDefaults = injectedDefaults ?? UnifiedPreferences.make()
         self.userDefaults = userDefaults
         self.adapter = GameControllerAdapter()
         self.emitter = CoreGraphicsShortcutEmitter()
+        self.desktopLayout = DesktopLayoutController(defaults: userDefaults)
 
         do {
-            let store = try ProfileStore.applicationSupport()
-            self.profileStore = store
-            let loadResult = store.load()
+            let support = try FileManager.default.url(for: .applicationSupportDirectory,
+                in: .userDomainMask, appropriateFor: nil, create: false)
+            let unified = UnifiedProfileStore(applicationSupport: support)
+            self.unifiedStore = unified
+            let target = userDefaults?.string(forKey: "selectedTarget").flatMap(DesktopTarget.init(rawValue:)) ?? .codex
+            self.selectedTarget = target
+            self.session = UnifiedControllerSession(target: target)
+            self.emitter.target = target
+            self.profileStore = unified.store(for: target)
+            let loadResult = unified.load(for: target)
             self.profile = loadResult.profile
             if let recovery = loadResult.recoveryMessage {
                 self.statusMessage = recovery
@@ -73,22 +99,22 @@ final class AppModel: ObservableObject {
             self.statusMessage = "Using defaults in memory: \(error.localizedDescription)"
         }
 
-        if userDefaults.object(forKey: Self.testModeKey) == nil {
+        if userDefaults?.object(forKey: Self.testModeKey) == nil {
             self.testMode = true
         } else {
-            self.testMode = userDefaults.bool(forKey: Self.testModeKey)
+            self.testMode = userDefaults?.bool(forKey: Self.testModeKey) ?? true
         }
 
-        if userDefaults.object(forKey: Self.focusCodexOnStickMoveKey) == nil {
-            self.focusCodexOnStickMove = true
+        if userDefaults?.object(forKey: Self.focusTargetOnStickMoveKey) == nil {
+            self.focusTargetOnStickMove = true
         } else {
-            self.focusCodexOnStickMove = userDefaults.bool(
-                forKey: Self.focusCodexOnStickMoveKey
-            )
+            self.focusTargetOnStickMove = userDefaults?.bool(
+                forKey: Self.focusTargetOnStickMoveKey
+            ) ?? true
         }
 
         if
-            let rawOrientation = userDefaults.string(forKey: Self.leftJoyConOrientationKey),
+            let rawOrientation = userDefaults?.string(forKey: Self.leftJoyConOrientationKey),
             let orientation = SingleJoyConOrientation(rawValue: rawOrientation)
         {
             self.leftJoyConOrientation = orientation
@@ -105,7 +131,11 @@ final class AppModel: ObservableObject {
         if requestAccessibilityOnLaunch, !accessibilityTrusted {
             self.statusMessage = "Grant Accessibility to this installed build, then refresh permission."
         }
+        if userDefaults == nil {
+            self.statusMessage = "Unified preferences unavailable; preference changes stay in memory."
+        }
         adapter.setLeftJoyConOrientation(leftJoyConOrientation)
+        desktopLayoutMessage = desktopLayout.summary
         adapter.onControllersChanged = { [weak self] descriptors in
             self?.handleControllers(descriptors)
         }
@@ -123,8 +153,17 @@ final class AppModel: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor [weak self] in
+            MainActor.assumeIsolated {
+                self?.clockTask?.cancel()
+                self?.cancelDesktopRestore()
                 self?.releaseKeyboardState(reason: "Application terminating")
+            }
+        }
+        clockTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .milliseconds(25)) }
+                catch { return }
+                self?.advanceClock()
             }
         }
         adapter.rescan()
@@ -169,6 +208,7 @@ final class AppModel: ObservableObject {
     func update(_ mapping: InputMapping) {
         var candidate = profile
         candidate.update(mapping)
+        if let unifiedStore { candidate = unifiedStore.reservedControlsDisabled(candidate) }
         do {
             try candidate.validate()
             releaseKeyboardState(reason: "Mapping changed")
@@ -184,7 +224,9 @@ final class AppModel: ObservableObject {
         do {
             releaseKeyboardState(reason: "Profile reset")
             if let profileStore {
-                profile = try profileStore.reset()
+                let imported = unifiedStore.map { ProfileStore(profileURL: $0.legacyProfileURL).load().profile } ?? .starter
+                profile = unifiedStore?.adaptImportedBaseline(imported, for: selectedTarget) ?? imported
+                try profileStore.save(profile)
             } else {
                 profile = .starter
             }
@@ -199,14 +241,15 @@ final class AppModel: ObservableObject {
         panel.allowedContentTypes = [.json]
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
-        panel.message = "Choose a Joy-Con Codex Controller Community profile."
+        panel.message = "Choose a Joy-Con Unified Controller profile."
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
         do {
             guard let profileStore else {
                 throw CocoaError(.fileNoSuchFile)
             }
-            let imported = try profileStore.importProfile(from: url)
+            let source = try profileStore.importProfile(from: url)
+            let imported = unifiedStore?.reservedControlsDisabled(source) ?? source
             try profileStore.save(imported)
             releaseKeyboardState(reason: "Profile imported")
             profile = imported
@@ -227,6 +270,10 @@ final class AppModel: ObservableObject {
             guard let profileStore else {
                 throw CocoaError(.fileNoSuchFile)
             }
+            if let legacy = unifiedStore?.legacyProfileURL,
+               url.resolvingSymlinksInPath().standardizedFileURL == legacy.resolvingSymlinksInPath().standardizedFileURL {
+                throw DesktopControlError.unavailable("The original controller profile is protected from export.")
+            }
             try profileStore.export(profile, to: url)
             statusMessage = "Exported \(profile.name)."
         } catch {
@@ -241,316 +288,246 @@ final class AppModel: ObservableObject {
         try profileStore.save(profile)
     }
 
-    private func handleControllers(_ descriptors: [ControllerDescriptor]) {
-        let previousActiveID = supportedControllers.first?.id
-        let hadSupportedController = !supportedControllers.isEmpty
-        controllers = descriptors
-        let hasSupportedController = !supportedControllers.isEmpty
-        let currentActiveID = supportedControllers.first?.id
+    var profileLocation: String { profileStore?.profileURL.path ?? "In-memory profile" }
 
-        if hasSupportedController {
-            if let previousActiveID, previousActiveID != currentActiveID {
-                releaseKeyboardState(reason: "Active Joy-Con changed")
-            }
-            let names = supportedControllers.map(\.name).joined(separator: ", ")
-            statusMessage = "Connected: \(names)"
-            if !hadSupportedController {
-                feedbackMessage = "Joy-Con connected. Visual feedback is active."
-            }
-        } else {
-            releaseKeyboardState(reason: "Joy-Con disconnected")
-            statusMessage = descriptors.isEmpty
-                ? "No controllers detected. Pair a Joy-Con in macOS Bluetooth settings."
-                : "No supported Joy-Con detected."
+    func selectTarget(_ target: DesktopTarget) {
+        guard !restoringDesktopLayout else { return }
+        guard target != selectedTarget else { return }
+        consume(session.selectTarget(target, testMode: testMode, emitter: emitter))
+    }
+
+    func toggleTarget() { selectTarget(selectedTarget.other) }
+
+    func focusTarget() {
+        guard !restoringDesktopLayout else { return }
+        do {
+            let token = try suspendOutputThrowing()
+            if testMode {
+                session.completeActivation(generation: token)
+                feedbackMessage = "Test mode: application focus is suppressed."
+            } else { startActivation(generation: token) }
+        } catch { feedbackMessage = "Focus blocked: \(error.localizedDescription)" }
+    }
+
+    private func handleControllers(_ descriptors: [ControllerDescriptor]) {
+        let previous = supportedControllers.first?.id
+        controllers = descriptors
+        if let previous, previous != supportedControllers.first?.id {
+            cancelDesktopRestore()
+            activationTask?.cancel()
+            activationInProgress = false
+            do { try session.disconnected(emitter: emitter); try emitter.releaseHeldKeys() }
+            catch { feedbackMessage = "Disconnect cleanup failed: \(error.localizedDescription)" }
         }
+        statusMessage = supportedControllers.isEmpty ? "No supported Joy-Con connected." : "Joy-Con connected."
+        if connectionTracker.update(Set(supportedControllers.map(\.id))) {
+            if testMode {
+                codingHUD.show(detail: "Joy-Con 已连接 · Test Mode · 自动恢复已暂停")
+            } else {
+                restoreDesktopLayout(showConnectionHUD: true)
+            }
+        }
+    }
+
+    func captureDesktopLayout() {
+        guard !restoringDesktopLayout else { return }
+        do {
+            try refreshDesktopLayoutCandidates()
+            guard DesktopTarget.allCases.allSatisfy({ desktopWindowSelections[$0] != nil }) else {
+                desktopLayoutMessage = "检测到多个窗口，请在下方为 Codex / Claude 选择要恢复的窗口，再点记录。"
+                return
+            }
+            try desktopLayout.capture(selections: desktopWindowSelections)
+            desktopLayoutMessage = "已记录：\(desktopLayout.summary)"
+        } catch { desktopLayoutMessage = "记录失败：\(error.localizedDescription)" }
+    }
+
+    private func refreshDesktopLayoutCandidates() throws {
+        let candidates = try desktopLayout.candidates()
+        desktopLayoutCandidates = candidates
+        for target in DesktopTarget.allCases {
+            let choices = candidates.filter { $0.target == target }
+            if let selection = desktopWindowSelections[target], choices.contains(where: { $0.identity == selection }) { continue }
+            desktopWindowSelections[target] = choices.count == 1 ? choices[0].identity : nil
+        }
+    }
+
+    func previewCodingHUD() { codingHUD.show(detail: "HUD 预览 · 不移动窗口") }
+
+    func restoreDesktopLayout(showConnectionHUD: Bool = false) {
+        guard !testMode, !restoringDesktopLayout else { return }
+        do {
+            try emitter.requireExclusiveController()
+            let token = try suspendOutputThrowing()
+            let id = UUID()
+            desktopRestoreID = id
+            restoringDesktopLayout = true
+            desktopLayoutMessage = "正在恢复桌面布局…"
+            desktopRestoreTask = Task { @MainActor [weak self] in
+                guard let self else { return }
+                do {
+                    try await desktopLayout.restore()
+                    try Task.checkCancellation()
+                    guard desktopRestoreID == id else { return }
+                    desktopLayoutMessage = "已恢复：\(desktopLayout.summary)"
+                    if showConnectionHUD { codingHUD.show(detail: desktopLayout.summary) }
+                } catch is CancellationError { return }
+                catch {
+                    guard desktopRestoreID == id else { return }
+                    desktopLayoutMessage = "恢复未完成：\(error.localizedDescription)"
+                    if showConnectionHUD { codingHUD.show(detail: "Joy-Con 已连接 · 桌面恢复未完成，请查看控制器") }
+                }
+                guard desktopRestoreID == id else { return }
+                desktopRestoreID = nil
+                restoringDesktopLayout = false
+                desktopRestoreTask = nil
+                session.completeActivation(generation: token)
+            }
+        } catch {
+            desktopLayoutMessage = "恢复被阻止：\(error.localizedDescription)"
+            if showConnectionHUD { codingHUD.show(detail: "Joy-Con 已连接 · 桌面恢复被阻止") }
+        }
+    }
+
+    private func cancelDesktopRestore() {
+        desktopRestoreTask?.cancel()
+        desktopRestoreTask = nil
+        desktopRestoreID = nil
+        restoringDesktopLayout = false
     }
 
     private func handle(_ event: ControllerEvent) {
         recentEvent = event
-        if event.phase == .released {
-            stopRepeating(event.input)
+        if restoringDesktopLayout {
+            session.observeWhileSuspended(event)
+            return
         }
-        if shouldConsumeForCodexFocus(event) {
+        // Explicit pane selection can recover from an ambiguous-prompt activation
+        // failure. Background apps still use the ordinary first-stick focus gate.
+        if session.promptSelection(for: event) != nil, !session.heldInputs.contains(event.input),
+           testMode || emitter.driver.isFrontmost(.claudeCode) {
+            activationTask?.cancel()
+            activationInProgress = false
+            consume(session.process(event, profile: profile, testMode: testMode, emitter: emitter))
+            return
+        }
+        if !testMode, !activationInProgress, focusTargetOnStickMove,
+           CodexFocusTrigger.shouldFocus(for: event),
+           (!session.isReady || !emitter.driver.isFrontmost(selectedTarget)) {
+            do {
+                let token = try session.holdForActivation(event, emitter: emitter)
+                startActivation(generation: token)
+            } catch { feedbackMessage = error.localizedDescription }
+            return
+        }
+        consume(session.process(event, profile: profile, testMode: testMode, emitter: emitter))
+    }
+
+    private func advanceClock() {
+        for result in session.advance(to: .now, testMode: testMode, emitter: emitter) { consume(result) }
+    }
+
+    private func consume(_ result: UnifiedSessionResult) {
+        switch result {
+        case .desktopAction(let action, let disposition):
             recentResult = nil
-            accessibilityTrusted = AccessibilityPermission.isTrusted()
-            return
-        }
-        if let mapping = profile.mapping(for: event.input), mapping.doubleTapAction != nil {
-            handleTapSequence(event, mapping: mapping)
-            return
-        }
-
-        let result = mappingEngine.process(
-            event,
-            profile: profile,
-            testMode: testMode,
-            emitter: emitter
-        )
-        recentResult = result
-        accessibilityTrusted = AccessibilityPermission.isTrusted()
-
-        if
-            event.phase == .pressed,
-            result.disposition == .emitted,
-            let action = result.action,
-            let plan = ControllerRepeatPolicy.plan(for: event.input, action: action)
-        {
-            startRepeating(event.input, plan: plan)
-        }
-
-        let actionDescription = result.functionDescription
-            ?? result.action?.formatted
-            ?? "Disabled"
-        switch result.disposition {
-        case .emitted, .coalesced, .deferred, .suppressedByTestMode, .layerActivated, .layerReleased:
-            let layer = result.layer.rawValue
-            feedbackMessage = "\(event.input.displayName) [\(layer)] → \(actionDescription)."
-            if event.phase == .pressed, result.disposition != .layerActivated {
-                feedbackMessage += " " + adapter.playConfirmation()
+            if case .failed(let message) = disposition {
+                let feedback = "Input selection blocked: \(message)"
+                activationFailureMessage = feedback
+                feedbackMessage = feedback
+            } else if case .focusPrompt(let side) = action {
+                activationFailureMessage = nil
+                let label = side == .left ? "左侧输入框" : "右侧输入框"
+                feedbackMessage = disposition == .suppressedByTestMode
+                    ? "Test mode: \(label). No focus was changed."
+                    : "Claude Code · \(label)；松开 ZL 和摇杆后，L 录音跟随此输入框。"
+                if disposition == .emitted { _ = adapter.playConfirmation() }
             }
+        case .targetChanged(let target, let generation):
+            mappingFailureMessage = nil
+            activationTask?.cancel()
+            activationInProgress = false
+            emitter.target = target
+            selectedTarget = target
+            userDefaults?.set(target.rawValue, forKey: "selectedTarget")
+            profileStore = unifiedStore?.store(for: target)
+            if let loaded = unifiedStore?.load(for: target) { profile = loaded.profile }
+            recentResult = nil
+            if testMode {
+                feedbackMessage = "Test target: \(target.displayName). No application was activated."
+            } else { startActivation(generation: generation) }
+        case .mapping(let mapping):
+            recentResult = mapping
+            if case .failed(let message) = mapping.disposition {
+                let failure = "Output blocked: \(message)"
+                mappingFailureMessage = failure
+                feedbackMessage = failure
+            } else {
+                if mapping.disposition == .emitted || mapping.disposition == .suppressedByTestMode {
+                    mappingFailureMessage = nil
+                }
+                feedbackMessage = mappingFailureMessage
+                    ?? "\(selectedTarget.displayName) · \(mapping.layer.rawValue) · \(mapping.action?.formatted ?? "Disabled")"
+                if mappingFailureMessage == nil, selectedTarget == .codex,
+                   mapping.action?.scrollCommand != nil, !emitter.lastScrollDiagnostics.isEmpty {
+                    feedbackMessage += "\n" + emitter.lastScrollDiagnostics
+                }
+            }
+            if mapping.disposition == .emitted, mapping.event.phase == .pressed { _ = adapter.playConfirmation() }
         case .failed(let message):
-            feedbackMessage = "\(event.input.displayName) blocked: \(message)"
-        case .released, .repeated, .unmapped, .disabled:
-            break
+            let failure = "Output blocked: \(message)"
+            mappingFailureMessage = failure
+            feedbackMessage = failure
+        case .suppressed:
+            if session.awaitingNeutral { feedbackMessage = "Release all controls before continuing with \(selectedTarget.displayName)." }
+            else if !session.isReady {
+                feedbackMessage = activationFailureMessage
+                    ?? "\(selectedTarget.displayName) is not ready. Use the Focus button to retry; no input was sent."
+            }
+        }
+        accessibilityTrusted = AccessibilityPermission.isTrusted()
+    }
+
+    private func startActivation(generation: UInt64) {
+        activationTask?.cancel()
+        activationInProgress = true
+        activationFailureMessage = nil
+        mappingFailureMessage = nil
+        let target = selectedTarget
+        feedbackMessage = "Focusing \(target.displayName)…"
+        activationTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                try emitter.requireExclusiveController()
+                try await emitter.driver.activate(target)
+                try Task.checkCancellation()
+                guard session.generation == generation, selectedTarget == target else { return }
+                session.completeActivation(generation: generation)
+                activationInProgress = false
+                feedbackMessage = session.awaitingNeutral ? "\(target.displayName) ready; release all controls." : "\(target.displayName) ready."
+            } catch is CancellationError { return }
+            catch {
+                guard session.generation == generation else { return }
+                activationInProgress = false
+                let message = "\(target.displayName) blocked: \(error.localizedDescription)"
+                activationFailureMessage = message
+                feedbackMessage = message
+            }
         }
     }
 
-    private func shouldConsumeForCodexFocus(_ event: ControllerEvent) -> Bool {
-        guard focusCodexOnStickMove, !testMode else { return false }
-        guard CodexFocusTrigger.shouldFocus(for: event) else { return false }
-        let activeLayer: MappingLayer = mappingEngine.isFunctionLayerActive
-            ? .function
-            : .primary
-        if profile.mapping(for: event.input)?.action(for: activeLayer)?.kind.isScroll == true {
-            return false
-        }
-        guard NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-                != Self.codexBundleIdentifier
-        else {
-            return false
-        }
-
-        releaseKeyboardState(reason: "Focusing Codex")
-        guard
-            let codexURL = NSWorkspace.shared.urlForApplication(
-                withBundleIdentifier: Self.codexBundleIdentifier
-            )
-        else {
-            feedbackMessage = "Codex was not found; this first direction was consumed."
-            return true
-        }
-
-        let configuration = NSWorkspace.OpenConfiguration()
-        configuration.activates = true
-        configuration.addsToRecentItems = false
-        NSWorkspace.shared.openApplication(
-            at: codexURL,
-            configuration: configuration
-        ) { _, _ in }
-        feedbackMessage = "Stick movement focused Codex; this first direction was consumed."
-
-        return true
+    @discardableResult
+    private func suspendOutputThrowing() throws -> UInt64 {
+        activationTask?.cancel()
+        activationInProgress = false
+        activationFailureMessage = nil
+        return try session.suspend(emitter: emitter)
     }
 
     private func releaseKeyboardState(reason: String) {
-        stopAllRepeating()
-        cancelTapSequences()
         do {
-            try mappingEngine.releaseAll(emitter: emitter)
-        } catch {
-            feedbackMessage = "\(reason); held shortcut cleanup failed: \(error.localizedDescription)"
-        }
-    }
-
-    private func startRepeating(_ input: ControllerInput, plan: RepeatPlan) {
-        stopRepeating(input)
-        repeatTasks[input] = Task { @MainActor [weak self] in
-            do {
-                try await Task.sleep(
-                    nanoseconds: plan.initialDelayMilliseconds * 1_000_000
-                )
-                while !Task.isCancelled {
-                    guard let self else { return }
-                    try self.emit(plan.output)
-                    try await Task.sleep(
-                        nanoseconds: plan.intervalMilliseconds * 1_000_000
-                    )
-                }
-            } catch is CancellationError {
-                return
-            } catch {
-                guard let self else { return }
-                self.feedbackMessage = "\(input.displayName) repeat blocked: \(error.localizedDescription)"
-                self.repeatTasks[input] = nil
-            }
-        }
-    }
-
-    private func emit(_ output: ContinuousOutput) throws {
-        switch output {
-        case let .keyboardTap(shortcut):
-            try emitter.emit(shortcut, phase: .tap)
-        case let .scroll(command):
-            try emitter.emit(command)
-        }
-    }
-
-    private func stopRepeating(_ input: ControllerInput) {
-        repeatTasks.removeValue(forKey: input)?.cancel()
-    }
-
-    private func stopAllRepeating() {
-        for task in repeatTasks.values {
-            task.cancel()
-        }
-        repeatTasks.removeAll()
-    }
-
-    private func handleTapSequence(_ event: ControllerEvent, mapping: InputMapping) {
-        let interval = mapping.resolvedDoubleTapIntervalMilliseconds
-        if event.phase == .pressed,
-           tapSequenceRecognizer.expire(event.input, at: event.timestamp) {
-            emitPendingSingleTap(for: event.input)
-        }
-
-        switch event.phase {
-        case .pressed:
-            switch tapSequenceRecognizer.press(event.input, at: event.timestamp) {
-            case .firstTap:
-                setSequenceFeedback(
-                    event: event,
-                    action: mapping.primaryAction,
-                    disposition: .deferred,
-                    message: "single pending (\(interval) ms)"
-                )
-            case .secondTap:
-                pendingSingleTapTasks.removeValue(forKey: event.input)?.cancel()
-                pendingSingleTapEvents.removeValue(forKey: event.input)
-                setSequenceFeedback(
-                    event: event,
-                    action: mapping.doubleTapAction,
-                    disposition: .deferred,
-                    message: "double detected"
-                )
-            case .repeated:
-                recentResult = MappingResult(
-                    event: event,
-                    layer: .primary,
-                    action: mapping.primaryAction,
-                    disposition: .repeated
-                )
-            }
-
-        case .released:
-            switch tapSequenceRecognizer.release(
-                event.input,
-                at: event.timestamp,
-                intervalMilliseconds: interval
-            ) {
-            case .singlePending:
-                pendingSingleTapEvents[event.input] = event
-                let input = event.input
-                pendingSingleTapTasks[input]?.cancel()
-                pendingSingleTapTasks[input] = Task { @MainActor [weak self] in
-                    try? await Task.sleep(for: .milliseconds(interval))
-                    guard !Task.isCancelled, let self else { return }
-                    guard self.tapSequenceRecognizer.expire(input, at: .now) else { return }
-                    self.emitPendingSingleTap(for: input)
-                }
-            case .doubleTap:
-                emitSequenceAction(
-                    mapping.doubleTapAction,
-                    event: event,
-                    label: "double"
-                )
-            case .ignored:
-                recentResult = MappingResult(
-                    event: event,
-                    layer: .primary,
-                    action: nil,
-                    disposition: .released
-                )
-            }
-        }
-    }
-
-    private func emitPendingSingleTap(for input: ControllerInput) {
-        pendingSingleTapTasks.removeValue(forKey: input)?.cancel()
-        guard
-            let event = pendingSingleTapEvents.removeValue(forKey: input),
-            let mapping = profile.mapping(for: input)
-        else { return }
-        emitSequenceAction(mapping.primaryAction, event: event, label: "single")
-    }
-
-    private func emitSequenceAction(
-        _ action: MappingAction?,
-        event: ControllerEvent,
-        label: String
-    ) {
-        guard let action, action.kind == .tap, let shortcut = action.shortcut else {
-            setSequenceFeedback(
-                event: event,
-                action: action,
-                disposition: .disabled,
-                message: "\(label) disabled"
-            )
-            return
-        }
-        if testMode {
-            setSequenceFeedback(
-                event: event,
-                action: action,
-                disposition: .suppressedByTestMode,
-                message: "\(label) tested only"
-            )
-            return
-        }
-        do {
-            try emitter.emit(shortcut, phase: .tap)
-            setSequenceFeedback(
-                event: event,
-                action: action,
-                disposition: .emitted,
-                message: "\(label) sent"
-            )
-            feedbackMessage += " " + adapter.playConfirmation()
-        } catch {
-            setSequenceFeedback(
-                event: event,
-                action: action,
-                disposition: .failed(error.localizedDescription),
-                message: "\(label) blocked: \(error.localizedDescription)"
-            )
-        }
-        accessibilityTrusted = AccessibilityPermission.isTrusted()
-    }
-
-    private func setSequenceFeedback(
-        event: ControllerEvent,
-        action: MappingAction?,
-        disposition: MappingDisposition,
-        message: String
-    ) {
-        let result = MappingResult(
-            event: event,
-            layer: .primary,
-            action: action,
-            disposition: disposition
-        )
-        recentResult = result
-        let actionDescription = result.functionDescription
-            ?? action?.formatted
-            ?? "Disabled"
-        feedbackMessage = "\(event.input.displayName) [Default] → \(actionDescription) · \(message)."
-    }
-
-    private func cancelTapSequences() {
-        for task in pendingSingleTapTasks.values {
-            task.cancel()
-        }
-        pendingSingleTapTasks.removeAll()
-        pendingSingleTapEvents.removeAll()
-        tapSequenceRecognizer.reset()
+            let token = try suspendOutputThrowing()
+            if testMode { session.completeActivation(generation: token) }
+        } catch { feedbackMessage = "\(reason): \(error.localizedDescription)" }
     }
 }

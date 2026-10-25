@@ -1,4 +1,5 @@
 import AppKit
+import JoyConCodexCore
 import SwiftUI
 
 enum AppSceneID {
@@ -28,7 +29,7 @@ struct JoyConCodexControllerApp: App {
     @StateObject private var model = AppModel()
 
     var body: some Scene {
-        Window("Joy-Con Codex Controller Community", id: AppSceneID.mainWindow) {
+        Window("Joy-Con Unified Controller", id: AppSceneID.mainWindow) {
             ContentView()
                 .environmentObject(model)
                 .frame(minWidth: 1_040, minHeight: 760)
@@ -41,12 +42,13 @@ struct JoyConCodexControllerApp: App {
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: model.menuBarStatus.systemImage)
+                Text(model.selectedTarget.displayName)
                 if let battery = model.activeControllerBattery {
                     Text(battery.compactSummary)
                         .monospacedDigit()
                 }
             }
-            .accessibilityLabel("Joy-Con Codex Controller Community")
+            .accessibilityLabel("Joy-Con Unified Controller")
         }
         .menuBarExtraStyle(.menu)
 

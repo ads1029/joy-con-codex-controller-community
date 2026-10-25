@@ -40,7 +40,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ github.ref_name }}
         run: |
-          archive="dist/JoyConCodexControllerCommunity-$RELEASE_VERSION-macOS-arm64.zip"
+          archive="dist/JoyConUnifiedController-$RELEASE_VERSION-macOS-arm64.zip"
           gh release create "$RELEASE_VERSION" \
             "$archive#macOS Apple silicon application" \
             "$archive.sha256#SHA-256 checksum" \

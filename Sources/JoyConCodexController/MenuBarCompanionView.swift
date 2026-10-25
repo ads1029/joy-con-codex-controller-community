@@ -12,6 +12,13 @@ struct MenuBarCompanionView: View {
 
     var body: some View {
         Group {
+            Text("控制目标：\(model.selectedTarget.displayName)")
+            ForEach(DesktopTarget.allCases) { target in
+                Button(target.displayName) { model.selectTarget(target) }
+            }
+            Button("ZL + Capture · 切换目标") { model.toggleTarget() }
+            Button("聚焦当前目标") { model.focusTarget() }.disabled(model.activationInProgress)
+            Divider()
             Label(
                 status.controllerSummary,
                 systemImage: status.isControllerConnected
@@ -36,7 +43,18 @@ struct MenuBarCompanionView: View {
             Divider()
 
             Toggle("Test Mode", isOn: $model.testMode)
-            Toggle("Focus Codex on Stick Move", isOn: $model.focusCodexOnStickMove)
+            Toggle("Focus Selected Target on Stick Move", isOn: $model.focusTargetOnStickMove)
+
+            Divider()
+            Text(model.desktopLayoutMessage)
+            Button("记录当前桌面布局") {
+                NSApplication.shared.activate(ignoringOtherApps: true)
+                openWindow(id: AppSceneID.mainWindow)
+                model.captureDesktopLayout()
+            }.disabled(model.restoringDesktopLayout)
+            Button("恢复已记录布局") { model.restoreDesktopLayout() }
+                .disabled(model.testMode || model.restoringDesktopLayout)
+            Button("预览连接 HUD") { model.previewCodingHUD() }
 
             Divider()
 
@@ -56,7 +74,7 @@ struct MenuBarCompanionView: View {
             Button {
                 NSApplication.shared.terminate(nil)
             } label: {
-                Label("Quit Joy-Con Codex Controller Community", systemImage: "power")
+                Label("Quit Joy-Con Unified Controller", systemImage: "power")
             }
             .keyboardShortcut("q")
         }

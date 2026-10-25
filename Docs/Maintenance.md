@@ -1,3 +1,13 @@
+# Unified candidate development (updated 2026-10-25)
+
+Active development is reopened for approved candidate **0.2.11**: one controller
+for Codex / Claude Desktop Code with ZL + Capture, preserving ordinary Capture
+and disabling SL/SR. See [Unified-Controller.md](Unified-Controller.md).
+The unified candidate is installed separately; the original app and configuration
+remain preserved. The maintenance
+policy below describes the historical 0.1.12 stable baseline; the candidate is
+not promoted stable until the physical and native integration gates pass.
+
 # Maintenance policy
 
 ## Status

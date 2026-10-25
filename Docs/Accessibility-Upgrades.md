@@ -1,3 +1,13 @@
+> Unified candidate: update only after explicit approval. Its bundle ID is
+> `com.ads1029.JoyConUnifiedController`, so it has separate Accessibility identity
+> and preferences. The approved candidate path in this session is
+> `/Applications/JoyConUnifiedController.app`; backups and receipts stay under
+> `~/Library/Application Support/JoyConUnifiedController/`. Reset only this
+> candidate's Accessibility service after registering that canonical path.
+> No old-controller permission is reset. The Community paths and commands below
+> are historical guidance, not instructions to reinstall the old controller.
+> A switched-on permission row still requires physical focus/recording acceptance.
+
 # Accessibility permission after local app upgrades
 
 ## Why an upgrade needs a fresh permission grant

@@ -11,6 +11,12 @@ public protocol ShortcutEmitting {
     func emit(_ scrollCommand: ScrollCommand) throws
 }
 
+/// An emitter may retain failed key-up destinations after engine cleanup so a
+/// later transition can retry release before changing targets.
+public protocol HeldShortcutRecovering: ShortcutEmitting {
+    func releaseHeldKeys() throws
+}
+
 public enum MappingDisposition: Equatable, Sendable {
     case released
     case repeated

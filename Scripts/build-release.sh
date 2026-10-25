@@ -15,7 +15,7 @@ fi
 
 script_directory="$(cd "$(dirname "$0")" && pwd)"
 repository_root="$(cd "$script_directory/.." && pwd)"
-application_name="JoyConCodexControllerCommunity"
+application_name="JoyConUnifiedController"
 resource_bundle_name="joy-con-codex-controller-community_JoyConCodexController.bundle"
 architecture="$(uname -m)"
 artifact_directory="$repository_root/dist"

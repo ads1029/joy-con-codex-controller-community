@@ -5,23 +5,23 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleDisplayName</key>
-    <string>Joy-Con Codex Controller Community</string>
+    <string>Joy-Con Unified Controller</string>
     <key>CFBundleExecutable</key>
-    <string>JoyConCodexControllerCommunity</string>
+    <string>JoyConUnifiedController</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
-    <string>com.ads1029.JoyConCodexControllerCommunity</string>
+    <string>com.ads1029.JoyConUnifiedController</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>JoyConCodexControllerCommunity</string>
+    <string>JoyConUnifiedController</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.1.12</string>
+    <string>0.2.11</string>
     <key>CFBundleVersion</key>
-    <string>12</string>
+    <string>31</string>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.utilities</string>
     <key>LSUIElement</key>

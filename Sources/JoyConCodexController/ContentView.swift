@@ -4,12 +4,14 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var model: AppModel
     @State private var confirmingReset = false
-    @State private var selectedMappingInput: ControllerInput? = .buttonA
+    @State private var selectedMappingInput: ControllerInput? = .dpadRight
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 header
+                targetCard
+                desktopLayoutCard
                 outputSafetyCard
                 controllerCard
                 diagnosticsCard
@@ -18,13 +20,13 @@ struct ContentView: View {
             .padding(24)
         }
         .background(Color(nsColor: .windowBackgroundColor))
-        .alert("Restore starter mappings?", isPresented: $confirmingReset) {
+        .alert("Restore imported baseline?", isPresented: $confirmingReset) {
             Button("Cancel", role: .cancel) {}
             Button("Restore", role: .destructive) {
                 model.resetProfile()
             }
         } message: {
-            Text("This replaces and saves every current mapping.")
+            Text("This replaces the selected unified profile only. The original controller configuration is read only.")
         }
         .onAppear {
             model.refreshAccessibilityPermission()
@@ -38,7 +40,7 @@ struct ContentView: View {
     private var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Joy-Con Codex Controller Community")
+                Text("Joy-Con Unified Controller")
                     .font(.largeTitle.bold())
                 Text("A tactile shortcut companion for macOS")
                     .foregroundStyle(.secondary)
@@ -46,6 +48,27 @@ struct ContentView: View {
             Spacer()
             statusPill
         }
+    }
+
+    private var targetCard: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 10) {
+                Picker("控制目标", selection: Binding(get: { model.selectedTarget }, set: { model.selectTarget($0) })) {
+                    ForEach(DesktopTarget.allCases) { target in Text(target.displayName).tag(target) }
+                }.pickerStyle(.segmented)
+                HStack {
+                    Text("ZL + Capture 切换 · Capture 单击／双击保留 · SL / SR 停用")
+                    Spacer()
+                    Button("聚焦 \(model.selectedTarget.displayName)") { model.focusTarget() }
+                        .disabled(model.activationInProgress)
+                }
+                Text(model.profileLocation).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                if model.selectedTarget == .claudeCode {
+                    Text("Claude Code：ZL＋摇杆左／右选择左右输入框，松开后 L 录音跟随该框；Capture 单／双击调节该框思考强度。")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }.padding(6)
+        } label: { Label("Codex / Claude Code", systemImage: "arrow.left.arrow.right") }
     }
 
     private var statusPill: some View {
@@ -65,6 +88,34 @@ struct ContentView: View {
         )
     }
 
+    private var desktopLayoutCard: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(model.desktopLayoutMessage).font(.callout).textSelection(.enabled)
+                Text("记录当前 Codex / Claude 的桌面、窗口大小和位置；Joy-Con 重连后自动恢复。测试模式暂停自动恢复。")
+                    .font(.caption).foregroundStyle(.secondary)
+                if !model.desktopLayoutCandidates.isEmpty {
+                    ForEach(DesktopTarget.allCases) { target in
+                        Picker("\(target.displayName) 窗口", selection: Binding<DesktopWindowIdentity?>(
+                            get: { model.desktopWindowSelections[target] },
+                            set: { model.desktopWindowSelections[target] = $0 }
+                        )) {
+                            Text("请选择要恢复的窗口").tag(Optional<DesktopWindowIdentity>.none)
+                            ForEach(model.desktopLayoutCandidates.filter { $0.target == target }) { candidate in
+                                Text(candidate.label).tag(Optional(candidate.identity))
+                            }
+                        }
+                    }
+                }
+                HStack {
+                    Button("记录当前桌面布局") { model.captureDesktopLayout() }
+                    Button("恢复已记录布局") { model.restoreDesktopLayout() }.disabled(model.testMode)
+                    Button("预览连接 HUD") { model.previewCodingHUD() }
+                }.disabled(model.restoringDesktopLayout)
+            }.padding(6)
+        } label: { Label("Coding Mode · 桌面布局", systemImage: "rectangle.3.group") }
+    }
+
     private var outputSafetyCard: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
@@ -75,21 +126,21 @@ struct ContentView: View {
                         Text(
                             model.testMode
                                 ? "Inputs resolve visibly; keyboard output is blocked."
-                                : "Mapped presses control the frontmost application with keyboard shortcuts."
+                                : "Output is limited to the selected desktop target. Claude must be on its Code page."
                         )
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     }
                 }
 
-                Toggle(isOn: $model.focusCodexOnStickMove) {
+                Toggle(isOn: $model.focusTargetOnStickMove) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Focus Codex on stick movement")
+                        Text("Focus selected target on stick movement")
                             .font(.headline)
                         Text(
                             model.testMode
                                 ? "Saved, but paused while Test Mode is active."
-                                : "When another app is frontmost, the first stick direction focuses Codex and is consumed."
+                                : "When another app is frontmost, the first stick direction focuses the selected target and is consumed."
                         )
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -286,6 +337,7 @@ struct ContentView: View {
                             MappingRow(mapping: mapping) {
                                 model.update($0)
                             }
+                            .disabled(mapping.input == .buttonSL || mapping.input == .buttonSR || mapping.input == .leftTrigger)
                         }
                         .frame(maxWidth: .infinity, alignment: .top)
                     } else {
@@ -455,12 +507,14 @@ private struct MappingRow: View {
                 update(action, layer: .primary)
             }
 
-            ActionSlotEditor(
-                title: "Fn",
-                action: mapping.functionAction,
-                fallbackAction: starterMapping?.functionAction
-            ) { action in
-                update(action, layer: .function)
+            if mapping.input == .buttonCapture {
+                Label("Fn · ZL + Capture 切换 Codex / Claude Code", systemImage: "arrow.left.arrow.right")
+            } else {
+                ActionSlotEditor(
+                    title: "Fn",
+                    action: mapping.functionAction,
+                    fallbackAction: starterMapping?.functionAction
+                ) { action in update(action, layer: .function) }
             }
 
             ActionSlotEditor(
@@ -648,7 +702,7 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Toggle("Launch in test mode", isOn: $model.testMode)
-            Toggle("Focus Codex on stick movement", isOn: $model.focusCodexOnStickMove)
+            Toggle("Focus selected target on stick movement", isOn: $model.focusTargetOnStickMove)
             Picker("Left Joy-Con grip", selection: $model.leftJoyConOrientation) {
                 ForEach(SingleJoyConOrientation.allCases) { orientation in
                     Text(orientation.displayName).tag(orientation)

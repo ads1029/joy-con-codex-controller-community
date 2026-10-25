@@ -1,4 +1,4 @@
-# Joy-Con Codex Controller Community
+# Joy-Con Unified Controller
 
 > Community-maintained fork of [`Jinjiang/joy-con-codex-micro`](https://github.com/Jinjiang/joy-con-codex-micro), based on the upstream 0.1.12 baseline. This is not the upstream project.
 
@@ -6,7 +6,110 @@
   <img src="Assets/AppIcon/AppIcon.png" alt="Joy-Con Codex Controller Community app icon" width="180">
 </p>
 
-A native macOS companion that turns an already paired Nintendo Switch Joy-Con into a configurable keyboard-shortcut controller.
+A native macOS menu-bar controller for **Codex and the Code page in Claude Desktop**.
+Use **ZL + Capture** to switch. Ordinary Capture single/double actions are preserved;
+SL/SR are disabled. One process owns controller input and target routing.
+
+The unified app uses bundle identity `com.ads1029.JoyConUnifiedController`, its
+own preference domain, and separate per-target JSON files. The old controller
+profile is read only as the initial layout; it is never overwritten or migrated
+in place. No second Berrry process or Berrry speech engine is run. Berrry Joyful
+was reviewed as prior art; the existing controller's mapping core is reused.
+
+## Local candidate (no installation)
+
+```sh
+swift test
+bash Scripts/build-release.sh 0.2.11
+```
+
+Build output: `dist/JoyConUnifiedController.app` and its ZIP/checksum. Building
+and signing do not install, register, launch, grant permissions, or alter the old
+app. Do not run the installer until explicitly deciding to install this candidate.
+When previewing a built candidate, Test Mode is enabled by default. Live output
+requires Accessibility for the new identity, and the old controller must be quit
+first. The candidate refuses live output while a known other controller runs.
+
+The window and menu bar both display the selected target. Switching releases
+held dictation keys, clears repeats/delayed taps, and waits for controls to return
+to neutral and the target to be ready. Claude must be on Code; Chat/Cowork do not
+receive synthetic input. In split views, select the intended prompt once if the
+active pane cannot be determined. In Claude's two-pane layout, **hold ZL, then
+move the stick left/right** to focus that side's input. Release ZL and the stick
+before holding L to record there. Recording, scrolling and Capture effort actions
+follow the selected prompt. The gesture is reserved for Claude; Codex and plain
+stick left/right retain their profile mappings. Missing/ambiguous controls block output visibly.
+
+For Claude, known Codex side-panel and side-chat shortcuts become Changes
+(`Cmd+Shift+D`) and side chat (`Cmd+;`). Ordinary Capture changes effort through
+the active prompt's model menu. Unsupported/custom shortcuts remain visible
+keyboard mappings and are not assigned invented meanings. Claude dictation uses the active prompt's native Hold to record control; the
+controller does not recognize or type speech itself. Actual speech and
+hardware behavior require the manual checks in the acceptance document.
+
+ChatGPT shortcut compatibility (0.2.8): imported ZL+stick up/down use
+`Cmd+Option+[` / `]` for previous/next sidebar item/chat. `Cmd+Shift+[` / `]`
+switch tabs in the user's current app. Imported Fn sidebar bindings use
+`Cmd+Shift+S`, and Fn navigation-panel bindings use `Cmd+Shift+E`;
+`Cmd+Option+B` now switches between Chat and tabs. Only exact known bindings
+are adapted during legacy import/baseline reset; saved target profiles and
+custom actions stay authoritative. Claude retains its existing shortcuts.
+See the complete [left/right control table](Docs/Unified-Controller.md#mapping-contract).
+The imported ZL+Minus chord `Cmd+Shift+A` archives the current ChatGPT chat;
+it is not a stop command.
+
+ChatGPT scrolling locates a focused/unique text input independently of Claude's
+prompt labels, then routes wheel events into a real accessible region above
+that input in the same column. It requests Electron web accessibility when
+needed, supports negative-origin displays, and rejects missing/ambiguous
+regions. Failed output remains visible after releasing the stick.
+Claude retains its existing split-pane scroll routing.
+0.2.10 adds content-free ChatGPT scroll diagnostics to Feedback (event point,
+input/region/window rectangles, modifier flags and AX hit-role path) and clears
+inherited modifiers on wheel events. A sent event is not proof of page movement.
+0.2.11 removes the unnecessary AXValue-assignment requirement for rich-text
+input anchors. If ChatGPT cannot expose an input/scroll region, it falls back to
+the original controller's point (window center X, 42% down) in its verified
+focused window. This target-specific compatibility mode does not use the current
+cursor and never activates another app. Diagnostics identify the mode and input
+role counts. In complex multi-pane layouts, check where the legacy point lands.
+
+On Claude activation the controller requests Electron's documented
+`AXManualAccessibility` support and waits for a web accessibility tree before
+looking for Code-page controls. A missing tree produces a readiness error rather
+than a misleading missing-selector error. This does not relax Code/Chat routing
+or prompt validation. Use **聚焦 Claude Code** to retry after a Claude restart/update.
+
+### Connection HUD and saved desktop layout
+
+Use **记录当前桌面布局** once with Codex and Claude on the desired desktops
+(for example desktops 5 and 6). With multiple windows, select the intended window
+for each app from the desktop/size/position list, then click record again. Other
+windows stay untouched; fullscreen/minimized windows are not restore targets.
+The unified app saves selected window identities, desktop UUIDs, display identities and
+window frames in its own preferences. **恢复已记录布局** provides a manual check.
+Live-mode Joy-Con connections restore that layout, including launch with an
+already connected Joy-Con. Test Mode pauses automatic window movement. Rescans
+and battery refreshes do not repeat connection effects.
+
+Every supported-controller arrival shows **vide coding mode on** for three
+seconds in a click-through, nonactivating HUD on the pointer's display. Its
+subtitle distinguishes Test Mode and incomplete restoration. **预览连接 HUD**
+previews the overlay without moving windows.
+
+Desktop movement is experimental: it dynamically uses private macOS Spaces
+interfaces on macOS 14.5 and later, verifying destination membership and window
+geometry. It uses the existing Accessibility permission, with no extra helper
+or SIP change. Recording reads WindowServer geometry on inactive desktops;
+restoring may briefly activate the apps to obtain their accessible windows,
+then returns focus to the previously active app. Deleted desktops, changed displays, fullscreen windows and
+ambiguous windows require correction or re-recording; errors are shown.
+An error after the first move can leave a partially restored layout. Desktop
+UUIDs preserve identity when Mission Control reorders displayed numbers.
+The feature does not launch missing apps or restore tabs/conversations.
+Closing a recorded window requires re-recording. After an app restarts, matching
+is automatic only if it has one candidate window; multiple candidates require
+selection again instead of moving an arbitrary window.
 
 Basic single-Joy-Con support is inherited from upstream. This fork maintains
 and extends that workflow with battery reporting, raw-HID supplementation,
@@ -40,17 +143,18 @@ license.
 
 The companion is local and framework-only: no Codex API or network service is required.
 
-> **Project status: Community maintenance** — Version 0.1.12 is the stable
-> upstream/fork baseline. The next fork release will be versioned separately.
-> New feature development is paused. Future work is limited to reproducible bug
-> fixes, macOS compatibility, security, packaging, and adjustments supported by
-> real controller usage. See [`Docs/Maintenance.md`](Docs/Maintenance.md).
+> **Development candidate 0.2.11** — installed locally for the approved
+> Codex / Claude Desktop Code integration. The original 0.1.12 controller and
+> configuration are preserved. The user confirmed Claude recording and ChatGPT
+> chat navigation, panel shortcuts and scrolling; physical reconnect/HUD acceptance
+> remains pending. This candidate has not been promoted stable.
+> See [the design and acceptance contract](Docs/Unified-Controller.md).
 
 <p align="center">
   <img src="Assets/README/joy-con-codex-controller-poster.png" alt="Joy-Con Codex Controller Community default and function-layer shortcut mappings" width="820">
 </p>
 
-## App interface
+## Legacy interface reference (0.1.12)
 
 <p align="center">
   <img src="Assets/README/joy-con-codex-controller-app.png" alt="Joy-Con Codex Controller Community macOS configuration window" width="920">
@@ -68,14 +172,14 @@ The project uses Swift Package Manager as its source of truth. Open `Package.swi
 ```sh
 swift build
 swift test -Xswiftc -F -Xswiftc "$(xcode-select -p)/Library/Developer/Frameworks"
-swift run JoyConCodexControllerCommunity
+swift run JoyConUnifiedController
 ```
 
 The explicit framework search path is needed by the current standalone Command Line Tools image so SwiftPM’s generated runner can discover the bundled Swift Testing framework. A full matching Xcode toolchain normally supports plain `swift test`.
 
 ## Background operation and menu bar
 
-Joy-Con Codex Controller Community runs as a menu-bar accessory, so it does not occupy a permanent Dock position. The red window close button closes the configuration window but intentionally leaves the companion process running so Joy-Con mappings can continue while another app is frontmost. While the process is active, the menu bar displays a controller icon with:
+Joy-Con Unified Controller runs as a menu-bar accessory, so it does not occupy a permanent Dock position. The red window close button closes the configuration window but intentionally leaves the companion process running so Joy-Con mappings can continue while another app is frontmost. While the process is active, the menu bar displays a controller icon with:
 
 - Joy-Con connection status
 - Battery percentage and charge state when macOS exposes `GCController.battery`
@@ -147,7 +251,7 @@ swift run JoyConInputLogger          # left 0x2006
 swift run JoyConInputLogger --right  # right 0x2007
 ```
 
-## Default layered keyboard mappings
+## Core starter defaults (reference)
 
 The `Codex Keyboard Layers` starter profile is designed for one Joy-Con held in portrait orientation. The Plus/Minus end is up and the Home/Capture end is down. A right Joy-Con uses A/B/X/Y; the left Joy-Con direction in the same physical position has the same action.
 
@@ -155,8 +259,8 @@ ZL and ZR are internal Fn controls. They post no keyboard event, and the Fn laye
 
 | Joy-Con input | Default | While ZL or ZR is held |
 | --- | --- | --- |
-| SL | `⌘⇧[` — Previous chat | `⌘[` — Back |
-| SR | `⌘⇧]` — Next chat | `⌘]` — Forward |
+| SL | Disabled in unified controller | Disabled |
+| SR | Disabled in unified controller | Disabled |
 | A / left D-pad right | `Return` — Enter / confirm | `⌘⌥B` — Toggle side panel |
 | B / left D-pad down | `Escape` — Cancel or dismiss | `⌘J` — Toggle bottom panel |
 | X / left D-pad up | `⌘⌥S` — New side chat | `⌘W` — Close chat |
@@ -164,21 +268,23 @@ ZL and ZR are internal Fn controls. They post no keyboard event, and the Fn laye
 | Plus / Minus | `⌘N` — New chat | Disabled |
 | L or R | Hold `⌃⇧D` — Voice dictation | Same as Default |
 | ZL or ZR | Function layer | Function layer |
-| Stick up/down/left/right | Matching arrow-key tap | Same as Default |
-| Home, Capture | Disabled | Disabled |
+| Stick up/down | Matching arrow-key tap | Same as Default |
+| Stick left/right | Matching arrow-key tap | Claude + ZL: select left/right input; otherwise profile mapping |
+| Home | Disabled | Disabled |
+| Capture | Imported single/double action | ZL + Capture switches targets |
 | Stick press | Disabled | Disabled |
 
-These values are the 0.1.1 starter defaults, not a forced update to an existing profile. Updating or relaunching the app leaves saved mappings in place. To adopt this exact table, choose **Restore Defaults**, which replaces and saves every current mapping; otherwise edit only the desired slots.
+These are core starter values for reference. The unified controller initially reads the existing saved layout, including its custom stick scrolling and Capture actions. **Restore imported baseline** restores a read-only copy of the old layout into the selected unified profile; it never resets the old controller.
 
 L and R share one held dictation chord: the first voice control posts key-down, and the final released voice control posts key-up. Controller disconnect, profile changes, test mode, and ordinary application termination also release any active hold.
 
-Stick directions are edge-triggered and do not auto-repeat while held. Activation uses a higher threshold than release so small threshold jitter does not retrigger arrow keys. Severe hardware drift can still produce input; leave the app in test mode while checking a worn controller.
+Stick directions use edge detection. Scroll, left/right cursor and Backspace mappings repeat according to the shared repeat policy; other shortcuts do not auto-repeat. Activation uses a higher threshold than release so small threshold jitter does not retrigger arrow keys. Severe hardware drift can still produce input; leave the app in test mode while checking a worn controller.
 
 The mapping editor shows Default and Fn slots separately. Disabled slots say **Disabled**, tap and hold behavior is identified, and exact known ChatGPT chords include a plain-language description. Custom chords remain editable but receive no invented ChatGPT meaning.
 
 The editor also includes an interactive portrait Joy-Con diagram. Selecting a mapping or clicking a control on the diagram highlights its physical location in yellow. Pressing a connected Joy-Con control selects that mapping and shows a green live-input highlight, including individual stick directions and the duplicated SL/SR rail positions.
 
-These are ordinary keyboard events delivered to whichever application is frontmost. For example, `⌘⌥S`, `⌘W`, or `⌘N` can mean something different in another application. With **Focus Codex on stick movement** enabled, the first stick direction activates Codex and is consumed; subsequent directions use their mappings. The companion does not use a Codex API.
+Output is restricted to the selected desktop application. With **Focus selected target on stick movement** enabled, the first stick direction focuses that target and is consumed. Release the controls before continuing. Scrolling uses the accessible active conversation area rather than the pointer location. The controller uses no Codex/Claude API or network service.
 
 On first launch, test mode is enabled and prevents every mapping from posting keyboard events. To use live output, turn off test mode and grant Accessibility permission. Because background controller monitoring remains active while the process is running, live mappings can continue after the main window is closed; use `⌘Q` or the app’s Quit command to stop the process completely.
 
@@ -187,12 +293,13 @@ On first launch, test mode is enabled and prevents every mapping from posting ke
 Mappings are stored as versioned JSON at:
 
 ```text
-~/Library/Application Support/JoyConCodexController/mapping-profile.json
+~/Library/Application Support/JoyConUnifiedController/codex-profile.json
+~/Library/Application Support/JoyConUnifiedController/claudeCode-profile.json
 ```
 
 Writes are atomic. If the stored file is unreadable or invalid, it is left untouched and the app loads starter defaults in memory. The same validated JSON format is used for import and export.
 
-Schema-v1 profiles are migrated in memory to schema 2. Existing enabled shortcuts remain Default tap actions, existing disabled mappings stay disabled, and their Fn slots remain disabled. Inputs that are entirely absent from an older profile are added with their current starter values so newly supported controls appear, but existing entries are never overwritten. Choose **Restore Defaults** only when you want to replace the complete saved profile with the current starter layout.
+Schema-v1 profiles are migrated in memory to schema 2. Existing enabled shortcuts remain Default tap actions, existing disabled mappings stay disabled, and their Fn slots remain disabled. Inputs that are entirely absent from an older profile are added with their current starter values so newly supported controls appear, but existing entries are never overwritten. **Restore imported baseline** affects only the selected unified target. SL/SR and ZL + Capture remain reserved.
 
 ## Signing and distribution
 
