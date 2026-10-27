@@ -62,14 +62,26 @@ windows/destinations SHALL be validated before the first move.
 - **THEN** restoration reports an error before moving either window
 - **AND** it does not substitute a different desktop with the old ordinal number
 
-### Requirement: Switch targets with ZL and Capture
-The unified controller SHALL switch targets on a fresh Capture press while ZL
-is held, before ordinary tap recognition. SL/SR SHALL remain disabled.
+### Requirement: Switch targets with three complete ZL taps
+The unified controller SHALL switch targets only on the third ZL release in an
+isolated triple tap. Each press SHALL last at most 300 ms; adjacent taps SHALL
+have at most 350 ms between release and next press; all three SHALL complete
+within one second. SL/SR and the former ZL+Capture chord SHALL remain disabled.
 
-#### Scenario: Switch while Capture has a pending ordinary tap
-- **WHEN** the user presses ZL followed by Capture
-- **THEN** the target toggles once, the pending tap is discarded, and no Capture
-  keyboard action is emitted by that combination
+#### Scenario: Three quick ZL taps
+- **WHEN** the user completes three isolated ZL taps within those bounds
+- **THEN** the target toggles once, delayed taps/repeats are discarded, held
+  output cleanup and destination readiness still apply, and no Capture action emits
+
+#### Scenario: ZL is used as Fn or a sequence is interrupted
+- **WHEN** ZL is held, combined with another control, or a partial sequence crosses
+  suspension, disconnect or desktop restoration
+- **THEN** the triple-tap count is cleared and Fn actions remain immediate
+- **AND** single/double taps, duplicate edges and overlong sequences do not switch
+
+#### Scenario: Former switch chord
+- **WHEN** ZL+Capture is used and released in either order
+- **THEN** it neither switches targets nor leaks an ordinary Capture single/double
 
 #### Scenario: Plain single and double Capture
 - **WHEN** Capture is used without ZL

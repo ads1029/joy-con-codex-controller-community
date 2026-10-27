@@ -47,7 +47,7 @@ live mappings or install/reset permissions as a side effect of unit tests.
 
 - Keep profiles and destination validation target-local. Preserve arbitrary
   custom mappings and legacy bytes; do not migrate the original file in place.
-- Preserve ordinary Capture single/double actions; reserve ZL+Capture and SL/SR.
+- Preserve ordinary Capture single/double actions; preserve immediate ZL Fn and reserve its isolated triple tap for app switching; keep ZL+Capture and SL/SR disabled.
 - Release held output before switching apps/inputs or entering Test Mode, and
   require neutral controls before new output.
 - Keep Claude on its Code page with an unambiguous prompt. Do not substitute CLI

@@ -1,7 +1,7 @@
 # Maintenance and release policy
 
 Updated 2026-10-25. The original **0.1.12** remains the historical maintenance
-baseline. Active development is reopened for **0.2.11**, the unified Codex /
+baseline. Active development is reopened for **0.2.12**, the unified Codex /
 Claude Desktop Code candidate. It is installed separately; it has not been
 promoted to a stable public release.
 
@@ -35,17 +35,19 @@ they do not require rebuilding, reinstalling or resetting permissions.
 swift test
 # When the CLI is installed:
 openspec validate --all --strict
-bash Scripts/build-release.sh 0.2.11
+bash Scripts/build-release.sh 0.2.12
 codesign --verify --deep --strict dist/JoyConUnifiedController.app
-(cd dist && shasum -a 256 -c JoyConUnifiedController-0.2.11-macOS-arm64.zip.sha256)
+(cd dist && shasum -a 256 -c JoyConUnifiedController-0.2.12-macOS-arm64.zip.sha256)
 git diff --check
 ```
 
 Replace the version/architecture for a future candidate. Verify installed hashes
 against the built bundle when testing an upgrade, and keep a recoverable backup.
-The current 0.2.11 record is **114 tests in 19 suites passed**, release/signature/
+The historical 0.2.11 record is **114 tests in 19 suites passed**, release/signature/
 checksum checks passed; OpenSpec strict validation was not run because its CLI
-was unavailable. This is a recorded result, not a guarantee for later commits.
+was unavailable. This is a recorded result, not a guarantee for later commits. The 0.2.12
+triple-ZL change passed 122 tests in 19 suites (42 focused unified tests);
+release/signature/archive checks and physical acceptance are recorded separately.
 
 ## Physical smoke checks
 
@@ -53,7 +55,7 @@ was unavailable. This is a recorded result, not a guarantee for later commits.
 | --- | --- |
 | Input | Intended device, portrait/sideways orientation, L/ZL, stick click and disabled SL/SR |
 | Suppression | Test Mode emits no mappings or automatic window moves |
-| Switching | ZL+Capture changes target; held recording releases; neutral controls are required |
+| Switching | Three quick ZL taps change target; single/double/long Fn use does not; ZL+Capture stays disabled; transition cleanup and readiness remain required |
 | Ordinary actions | Capture single/double, repeat boundaries, dictation start/stop, scrolling and bottom |
 | Claude panes | ZL+fresh left/right selects the correct input; recording/scrolling follow it |
 | Codex compatibility | Sidebar chat navigation and panel shortcuts match the installed app |

@@ -1,6 +1,6 @@
 # Unified desktop controller: behavior and acceptance
 
-Current development candidate: **0.2.11**. This document describes the implemented
+Current development candidate: **0.2.12**. This document describes the implemented
 contract and separates automated checks from physical acceptance. Historical
 candidate changes are in [CHANGELOG.md](../CHANGELOG.md).
 
@@ -8,7 +8,7 @@ candidate changes are in [CHANGELOG.md](../CHANGELOG.md).
 
 One GameController/HID adapter owns device input. The existing mapping engine,
 hold ownership, repeat policy and tap recognizer remain shared. The session
-intercepts ZL+Capture before double-tap recognition. Each desktop target has its
+recognizes three complete ZL taps independently of Capture double-tap recognition. Each desktop target has its
 own profile, application identity, readiness checks and scroll destination.
 
 | Layer | Responsibility |
@@ -56,7 +56,7 @@ When a target file is absent, the original
 mappings are used. Launch does not create target files. Saves are atomic and
 target-local. Invalid source files remain intact with a recovery warning.
 The original app, preferences and legacy profile are preserved. SL/SR and the
-ZL+Capture switch remain reserved independently of profile edits.
+triple-ZL switch remain reserved independently of profile edits; the old ZL+Capture chord is disabled.
 
 ## Mapping contract
 
@@ -76,17 +76,24 @@ layout plus target adapters, not generic core defaults.
 | Stick down | Scroll down | Next sidebar item/chat `Cmd+Option+]` | Next session `Cmd+Shift+]` |
 | Stick left/right | Cursor left/right | Same | Select left/right input; release both afterward |
 | Stick click | Scroll to bottom | Chat 1 `Cmd+1` | Session 1 `Cmd+1` |
-| Capture single | Increase effort (ChatGPT `Ctrl+Option+Right`, Claude model menu) | Switch app | Switch app |
-| Capture double | Decrease effort (ChatGPT `Ctrl+Option+Left`, Claude model menu) | Reserved switch combination | Reserved switch combination |
-| ZL | Enter Fn while held; no keyboard event | — | — |
+| Capture single | Increase effort (ChatGPT `Ctrl+Option+Right`, Claude model menu) | Disabled | Disabled |
+| Capture double | Decrease effort (ChatGPT `Ctrl+Option+Left`, Claude model menu) | Disabled | Disabled |
+| ZL | Hold for immediate Fn; three quick complete taps switch apps | — | — |
 | SL/SR | Disabled | Disabled | Disabled |
 
 Right-controller retained mappings: A/B/X/Y ordinary Enter/Escape/side chat/
 Backspace; ZR layer navigation panel/bottom panel/close/sidebar (with Claude
 adapters); Plus new chat; R hold/release dictation; ZR Fn; right stick arrows in
 both layers; right stick click, Home and SL/SR disabled. App switching uses
-ZL+Capture. Scroll, horizontal cursor movement and Backspace repeat while held;
+three quick ZL taps. Scroll, horizontal cursor movement and Backspace repeat while held;
 app/prompt switches require neutral controls before continuing.
+
+Triple-ZL timing: each press lasts at most 300 ms, the release-to-next-press
+interval is at most 350 ms, and all three taps complete within one second. Switch
+only on the third release. A long hold, another control, mode/focus transition,
+disconnect or desktop restoration clears partial counts. Fn responds immediately
+without waiting for this timing window. The old ZL+Capture chord is consumed with
+either release order and never becomes an ordinary Capture tap.
 
 2026-10-25 audit: the user's current View-menu screenshot distinguishes
 previous/next **sidebar item** (`Cmd+Option+[` / `]`) from previous/next **tab**
@@ -180,7 +187,7 @@ are not restored. Re-record after closing the selected window.
 
 ## Verification status
 
-Recorded candidate checks (2026-10-25):
+Historical candidate checks (2026-10-25), followed by the current gesture update:
 
 | Check | Evidence and limits |
 | --- | --- |
@@ -199,6 +206,26 @@ fix. User-reported physical acceptance is distinct from tool-observed native
 state and unit tests. Results on older candidates do not certify every gesture
 on 0.2.11. Codex native UI inspection was unavailable to the computer-use tool;
 its output checks above came from the user's physical tests.
+
+0.2.12 validation: **122 tests in 19 suites passed**, including 42 unified
+transition/profile tests. Release/signature/archive checks and the new gesture
+physical acceptance are recorded separately. Earlier native acceptance is
+retained as historical evidence. The user confirmed the 0.2.12 triple-ZL
+round trip from Codex to Claude Code and back.
+
+The 0.2.12 candidate was backed up and installed at the canonical `/Applications`
+path on 2026-10-28. Its running binary matches the staged signature/hash, and
+the new gesture label and connected left Joy-Con are visible in the native UI.
+Original configuration and saved coding-desktop layout checksums are unchanged.
+Only the candidate's Accessibility identity was refreshed. After the user
+completed local macOS unlock, System Settings showed its switch on, and clicking
+Request / Refresh produced `Accessibility permission granted` in the candidate.
+After waking/reconnecting the controller, the user replied `OK，可以了。`
+to the requested triple-ZL round trip (Codex → Claude Code → Codex). This is
+user-reported physical acceptance. Capture/Fn boundary preservation is covered
+by the automated regression tests, not newly claimed native acceptance.
+The installed binary, original configuration and saved layout were reverified
+unchanged after this test.
 
 Code/release changes follow [the final validation procedure](Maintenance.md).
 Permissions/upgrades follow [Accessibility-Upgrades.md](Accessibility-Upgrades.md).

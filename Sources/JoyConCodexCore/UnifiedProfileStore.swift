@@ -81,7 +81,7 @@ public struct UnifiedProfileStore: Sendable {
         }
         result.update(InputMapping(input: .leftTrigger, primaryAction: .functionLayer))
         if var capture = result.mapping(for: .buttonCapture) {
-            capture.functionAction = nil // Reserved by the switch gate, not a keyboard action.
+            capture.functionAction = nil // The former ZL+Capture chord remains disabled.
             result.update(capture)
         }
         return result

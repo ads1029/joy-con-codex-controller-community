@@ -19,7 +19,7 @@ reviewed as prior art; no second Berrry process or copied speech engine is used.
 
 | Item | Unified candidate |
 | --- | --- |
-| Version | 0.2.11, development candidate |
+| Version | 0.2.12, development candidate |
 | App/display name | `JoyConUnifiedController.app` / Joy-Con Unified Controller |
 | Executable product | `JoyConUnifiedController` |
 | Bundle/defaults identity | `com.ads1029.JoyConUnifiedController` |

@@ -16,7 +16,7 @@ struct MenuBarCompanionView: View {
             ForEach(DesktopTarget.allCases) { target in
                 Button(target.displayName) { model.selectTarget(target) }
             }
-            Button("ZL + Capture · 切换目标") { model.toggleTarget() }
+            Button("ZL 连按三次 · 切换目标") { model.toggleTarget() }
             Button("聚焦当前目标") { model.focusTarget() }.disabled(model.activationInProgress)
             Divider()
             Label(

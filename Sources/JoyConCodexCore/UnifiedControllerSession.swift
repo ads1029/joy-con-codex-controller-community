@@ -21,6 +21,8 @@ public struct UnifiedControllerSession: Sendable {
 
     private var engine = MappingEngine()
     private var taps = TapSequenceRecognizer()
+    private var switchTaps = ZLTripleTapRecognizer()
+    private var functionCaptureHeld = false
     private struct PendingTap: Sendable {
         let event: ControllerEvent
         let action: MappingAction?
@@ -49,7 +51,10 @@ public struct UnifiedControllerSession: Sendable {
 
     public mutating func process(_ event: ControllerEvent, profile: MappingProfile,
         testMode: Bool, emitter: any ShortcutEmitting) -> UnifiedSessionResult {
-        guard event.input != .buttonSL && event.input != .buttonSR else { return .suppressed }
+        guard event.input != .buttonSL && event.input != .buttonSR else {
+            switchTaps.reset()
+            return .suppressed
+        }
         let freshPress: Bool
         switch event.phase {
         case .pressed: freshPress = heldInputs.insert(event.input).inserted
@@ -59,14 +64,27 @@ public struct UnifiedControllerSession: Sendable {
             freshPress = false
         }
         if awaitingNeutral {
+            switchTaps.reset()
             if heldInputs.isEmpty { awaitingNeutral = false }
             return .suppressed
         }
-        // Only ZL-before-Capture switches; a duplicated press cannot toggle twice.
-        // This precedes both MappingEngine and ordinary Capture tap recognition.
-        if event.input == .buttonCapture, event.phase == .pressed, freshPress,
-           heldInputs.contains(.leftTrigger) {
+        if switchTaps.process(event, freshPress: freshPress,
+            otherControlsHeld: heldInputs.contains(where: { $0 != .leftTrigger })) {
             return selectTarget(target.other, testMode: testMode, emitter: emitter)
+        }
+        // The old chord is disabled. Consume its release even if ZL is released
+        // first, so it cannot leak into ordinary Capture single/double recognition.
+        if event.input == .buttonCapture {
+            if event.phase == .pressed, freshPress, heldInputs.contains(.leftTrigger) {
+                functionCaptureHeld = true
+                taps.cancel(.buttonCapture)
+                pendingTaps.removeValue(forKey: .buttonCapture)
+                return .suppressed
+            }
+            if functionCaptureHeld {
+                if event.phase == .released { functionCaptureHeld = false }
+                return .suppressed
+            }
         }
         if freshPress, let side = promptSelection(for: event) {
             return selectPrompt(side, testMode: testMode, emitter: emitter)
@@ -126,6 +144,8 @@ public struct UnifiedControllerSession: Sendable {
         repeats.removeAll()
         pendingTaps.removeAll()
         taps = TapSequenceRecognizer()
+        switchTaps.reset()
+        functionCaptureHeld = false
         var firstError: Error?
         do { try engine.releaseAll(emitter: emitter) } catch { firstError = error }
         if let recovering = emitter as? any HeldShortcutRecovering {
@@ -143,6 +163,7 @@ public struct UnifiedControllerSession: Sendable {
     /// Keep the neutral barrier accurate while an external window operation owns
     /// the UI. No chord, tap, repeat or target switch may escape this gate.
     public mutating func observeWhileSuspended(_ event: ControllerEvent) {
+        switchTaps.reset()
         if event.phase == .pressed { heldInputs.insert(event.input) }
         else { heldInputs.remove(event.input) }
         awaitingNeutral = !heldInputs.isEmpty

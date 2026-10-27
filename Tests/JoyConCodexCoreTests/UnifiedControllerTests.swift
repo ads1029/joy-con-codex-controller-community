@@ -17,19 +17,174 @@ struct UnifiedControllerTests {
         return profile
     }
 
-    @Test("ZL + Capture switches once, before ordinary Capture or double-tap")
+    private func zlTaps(_ count: Int, starting offset: Double = 0, step: Double = 0.15,
+        hold: Double = 0.05, input: ControllerInput = .leftTrigger) -> [ControllerEvent] {
+        (0..<count).flatMap { i in
+            [event(input, .pressed, offset + Double(i) * step),
+             event(input, .released, offset + Double(i) * step + hold)]
+        }
+    }
+
+    private func tripleSwitch(_ session: inout UnifiedControllerSession, emitter: UnifiedRecorder,
+        starting offset: Double = 0, testMode: Bool = false) -> UnifiedSessionResult {
+        var result = UnifiedSessionResult.suppressed
+        for e in zlTaps(3, starting: offset) {
+            result = session.process(e, profile: profile, testMode: testMode, emitter: emitter)
+        }
+        return result
+    }
+
+    @Test("Three complete ZL taps switch once, only on the third release")
     func chordPriority() {
         var session = UnifiedControllerSession()
         let emitter = UnifiedRecorder()
-        _ = session.process(event(.leftTrigger, .pressed), profile: profile, testMode: false, emitter: emitter)
-        let result = session.process(event(.buttonCapture, .pressed, 0.1), profile: profile, testMode: false, emitter: emitter)
+        let events = zlTaps(3)
+        for e in events.dropLast() {
+            _ = session.process(e, profile: profile, testMode: false, emitter: emitter)
+            #expect(session.target == .codex)
+        }
+        let result = session.process(events.last!, profile: profile, testMode: false, emitter: emitter)
         #expect(result == .targetChanged(.claudeCode, generation: 1))
         #expect(emitter.keys.isEmpty)
         #expect(!session.isReady)
-        #expect(session.awaitingNeutral)
-        _ = session.process(event(.buttonCapture, .pressed, 0.2), profile: profile, testMode: false, emitter: emitter)
-        #expect(session.target == .claudeCode)
+        #expect(!session.awaitingNeutral)
+        _ = session.process(events.last!, profile: profile, testMode: false, emitter: emitter)
+        #expect(session.generation == 1)
         #expect(session.advance(to: origin.addingTimeInterval(10), testMode: false, emitter: emitter).isEmpty)
+    }
+
+    @Test("Single/double ZL, long holds, slow gaps and overlong sequences do not switch")
+    func invalidZLSequences() {
+        let cases = [zlTaps(1), zlTaps(2), zlTaps(3, step: 0.5, hold: 0.4),
+            zlTaps(3, step: 0.5), zlTaps(3, step: 0.5, hold: 0.2)]
+        for events in cases {
+            var session = UnifiedControllerSession()
+            let emitter = UnifiedRecorder()
+            for e in events { _ = session.process(e, profile: profile, testMode: false, emitter: emitter) }
+            #expect(session.target == .codex)
+            #expect(!session.isFunctionLayerActive)
+        }
+    }
+
+    @Test("ZL function combinations are immediate and cancel triple-tap history")
+    func functionCombinationCancelsSwitch() {
+        var session = UnifiedControllerSession(target: .claudeCode)
+        let emitter = UnifiedRecorder()
+        for e in zlTaps(2) + [event(.leftTrigger, .pressed, 0.3)] {
+            _ = session.process(e, profile: profile, testMode: false, emitter: emitter)
+        }
+        #expect(session.isFunctionLayerActive)
+        _ = session.process(event(.leftStickRight, .pressed, 0.32), profile: profile, testMode: false, emitter: emitter)
+        #expect(emitter.desktopActions == [.focusPrompt(.right)])
+        for input in [ControllerInput.leftTrigger, .leftStickRight] {
+            _ = session.process(event(input, .released, 0.35), profile: profile, testMode: false, emitter: emitter)
+        }
+        for e in zlTaps(2, starting: 0.4) {
+            _ = session.process(e, profile: profile, testMode: false, emitter: emitter)
+        }
+        #expect(session.target == .claudeCode)
+    }
+
+    @Test("A normal Fn shortcut cancels prior ZL taps without delaying its output")
+    func normalFnCancelsTaps() {
+        var session = UnifiedControllerSession()
+        let emitter = UnifiedRecorder()
+        for e in zlTaps(2) + [event(.leftTrigger, .pressed, 0.3),
+            event(.dpadLeft, .pressed, 0.31), event(.dpadLeft, .released, 0.32),
+            event(.leftTrigger, .released, 0.33)] {
+            _ = session.process(e, profile: profile, testMode: false, emitter: emitter)
+        }
+        #expect(emitter.keys.map(\.0) == [profile.mapping(for: .dpadLeft)!.functionAction!.shortcut!])
+        for e in zlTaps(2, starting: 0.4) { _ = session.process(e, profile: profile, testMode: false, emitter: emitter) }
+        #expect(session.target == .codex)
+    }
+
+    @Test("ZL taps while another control is held cannot switch or interrupt recording")
+    func heldControlBlocksTriple() {
+        var session = UnifiedControllerSession()
+        let emitter = UnifiedRecorder()
+        _ = session.process(event(.leftShoulder, .pressed), profile: profile, testMode: false, emitter: emitter)
+        for e in zlTaps(3, starting: 0.1) { _ = session.process(e, profile: profile, testMode: false, emitter: emitter) }
+        #expect(session.target == .codex && emitter.held)
+        _ = session.process(event(.leftShoulder, .released, 0.7), profile: profile, testMode: false, emitter: emitter)
+        #expect(emitter.keys.map(\.1) == [.keyDown, .keyUp])
+    }
+
+    @Test("Old ZL+Capture is disabled with either release order; ordinary Capture still works")
+    func formerChordDisabled() {
+        for order in [[ControllerInput.leftTrigger, .buttonCapture], [.buttonCapture, .leftTrigger]] {
+            var session = UnifiedControllerSession()
+            let emitter = UnifiedRecorder()
+            for e in [event(.leftTrigger, .pressed), event(.buttonCapture, .pressed, 0.02)] {
+                _ = session.process(e, profile: profile, testMode: false, emitter: emitter)
+            }
+            for (i, input) in order.enumerated() {
+                _ = session.process(event(input, .released, 0.04 + Double(i) * 0.01), profile: profile, testMode: false, emitter: emitter)
+            }
+            _ = session.advance(to: origin.addingTimeInterval(1), testMode: false, emitter: emitter)
+            #expect(session.target == .codex)
+            #expect(emitter.keys.isEmpty)
+            for e in [event(.buttonCapture, .pressed, 2), event(.buttonCapture, .released, 2.02)] {
+                _ = session.process(e, profile: profile, testMode: false, emitter: emitter)
+            }
+            _ = session.advance(to: origin.addingTimeInterval(3), testMode: false, emitter: emitter)
+            #expect(emitter.keys.count == 1)
+        }
+    }
+
+    @Test("Duplicate ZL edges cannot synthesize extra taps")
+    func duplicateZLEdges() {
+        var session = UnifiedControllerSession()
+        let emitter = UnifiedRecorder()
+        for e in zlTaps(2) {
+            for _ in 0..<3 { _ = session.process(e, profile: profile, testMode: false, emitter: emitter) }
+        }
+        #expect(session.target == .codex)
+        for e in zlTaps(1, starting: 0.3) {
+            for _ in 0..<3 { _ = session.process(e, profile: profile, testMode: false, emitter: emitter) }
+        }
+        #expect(session.target == .claudeCode)
+        #expect(session.generation == 1)
+    }
+
+    @Test("Switch cancels pending Capture before its deadline and round trips without input output")
+    func tripleCancelsPendingCapture() {
+        var session = UnifiedControllerSession()
+        let emitter = UnifiedRecorder()
+        for e in [event(.buttonCapture, .pressed), event(.buttonCapture, .released, 0.01)] {
+            _ = session.process(e, profile: profile, testMode: false, emitter: emitter)
+        }
+        for e in zlTaps(3, starting: 0.02, step: 0.05, hold: 0.02) {
+            _ = session.process(e, profile: profile, testMode: false, emitter: emitter)
+        }
+        #expect(!session.hasDeferredOutput)
+        session.completeActivation(generation: session.generation)
+        _ = session.advance(to: origin.addingTimeInterval(1), testMode: false, emitter: emitter)
+        #expect(emitter.keys.isEmpty)
+        _ = tripleSwitch(&session, emitter: emitter, starting: 2)
+        #expect(session.target == .codex)
+        #expect(session.generation == 2)
+    }
+
+    @Test("Suspension, desktop restoration and disconnect discard partial ZL sequences")
+    func suspendedZLSequences() throws {
+        for mode in 0..<3 {
+            var session = UnifiedControllerSession()
+            let emitter = UnifiedRecorder()
+            for e in zlTaps(2) { _ = session.process(e, profile: profile, testMode: false, emitter: emitter) }
+            if mode == 0 { try session.outputModeChanged(emitter: emitter) }
+            if mode == 1 {
+                session.observeWhileSuspended(event(.leftTrigger, .pressed, 0.25))
+                session.observeWhileSuspended(event(.leftTrigger, .released, 0.26))
+            }
+            if mode == 2 {
+                try session.disconnected(emitter: emitter)
+                _ = session.process(event(.leftTrigger, .released, 0.26), profile: profile, testMode: false, emitter: emitter)
+                session.completeActivation(generation: session.generation)
+            }
+            for e in zlTaps(1, starting: 0.3) { _ = session.process(e, profile: profile, testMode: false, emitter: emitter) }
+            #expect(session.target == .codex)
+        }
     }
 
     @Test("Plain Capture single is deferred then emitted exactly once")
@@ -76,26 +231,20 @@ struct UnifiedControllerTests {
         #expect(!session.hasDeferredOutput)
     }
 
-    @Test("Raw L/ZL and portrait Home reach hold, switch, neutral and fresh Capture routes")
+    @Test("Raw HID ZL triple taps switch while L and portrait Capture retain their routes")
     func physicalMappingRoutes() throws {
         let l = try #require(LeftJoyConHIDMapping.input(forButtonUsage: 15))
         let zl = try #require(LeftJoyConHIDMapping.input(forButtonUsage: 16))
         let capture = LeftJoyConPortraitMapping.input(for: .buttonHome)
         var session = UnifiedControllerSession()
         let emitter = UnifiedRecorder()
-        for e in [event(l, .pressed), event(zl, .pressed, 0.01), event(capture, .pressed, 0.02)] {
+        for e in [event(l, .pressed), event(l, .released, 0.1)] + zlTaps(3, starting: 0.2, input: zl) {
             _ = session.process(e, profile: profile, testMode: false, emitter: emitter)
         }
         #expect(session.target == .claudeCode)
         #expect(emitter.keys.map(\.1) == [.keyDown, .keyUp])
         #expect(!emitter.held)
         session.completeActivation(generation: session.generation)
-        // Release ZL first: this must not turn the chord's Capture release into a tap.
-        for e in [event(zl, .released, 0.03), event(l, .released, 0.04), event(capture, .released, 0.05)] {
-            _ = session.process(e, profile: profile, testMode: false, emitter: emitter)
-        }
-        _ = session.advance(to: origin.addingTimeInterval(1), testMode: false, emitter: emitter)
-        #expect(emitter.keys.count == 2)
         for e in [event(capture, .pressed, 2), event(capture, .released, 2.02)] {
             _ = session.process(e, profile: profile, testMode: false, emitter: emitter)
         }
@@ -116,7 +265,7 @@ struct UnifiedControllerTests {
         #expect(session.hasDeferredOutput)
         #expect(emitter.scrolls == [.up])
         #expect(emitter.keys.map(\.1) == [.keyDown])
-        let changed = session.process(event(.buttonCapture, .pressed, 0.05), profile: profile, testMode: false, emitter: emitter)
+        let changed = session.selectTarget(.claudeCode, testMode: false, emitter: emitter)
         #expect(changed == .targetChanged(.claudeCode, generation: 1))
         #expect(emitter.keys.map(\.1) == [.keyDown, .keyUp])
         #expect(!session.hasDeferredOutput)
@@ -136,6 +285,7 @@ struct UnifiedControllerTests {
         let emitter = UnifiedRecorder()
         _ = session.process(event(.leftTrigger, .pressed), profile: profile, testMode: false, emitter: emitter)
         _ = session.process(event(.buttonCapture, .pressed), profile: profile, testMode: false, emitter: emitter)
+        _ = session.selectTarget(.claudeCode, testMode: false, emitter: emitter)
         session.completeActivation(generation: 1)
         _ = session.process(event(.dpadRight, .pressed), profile: profile, testMode: false, emitter: emitter)
         _ = session.process(event(.leftTrigger, .released), profile: profile, testMode: false, emitter: emitter)
@@ -169,8 +319,7 @@ struct UnifiedControllerTests {
             _ = session.process(e, profile: profile, testMode: true, emitter: emitter)
         }
         _ = session.advance(to: origin.addingTimeInterval(1), testMode: true, emitter: emitter)
-        _ = session.process(event(.leftTrigger, .pressed, 2), profile: profile, testMode: true, emitter: emitter)
-        _ = session.process(event(.buttonCapture, .pressed, 2.1), profile: profile, testMode: true, emitter: emitter)
+        _ = tripleSwitch(&session, emitter: emitter, starting: 2, testMode: true)
         #expect(session.target == .claudeCode)
         #expect(session.isReady)
         #expect(emitter.keys.isEmpty && emitter.scrolls.isEmpty)
@@ -369,8 +518,7 @@ struct UnifiedControllerTests {
             #expect(emitter.keys.map(\.1) == [.keyDown, .keyUp, .keyDown, .keyUp, .tap, .tap])
             #expect(emitter.keys.suffix(2).map(\.0) == [profile.mapping(for: .buttonCapture)!.primaryAction!.shortcut!,
                 profile.mapping(for: .buttonCapture)!.doubleTapAction!.shortcut!])
-            _ = session.process(event(.leftTrigger, .pressed, 11), profile: profile, testMode: false, emitter: emitter)
-            let appSwitch = session.process(event(.buttonCapture, .pressed, 11.1), profile: profile, testMode: false, emitter: emitter)
+            let appSwitch = tripleSwitch(&session, emitter: emitter, starting: 11)
             #expect(appSwitch == .targetChanged(.codex, generation: session.generation))
         }
     }

@@ -2,7 +2,7 @@
 
 Changes in the Community fork are recorded here. Candidate versions describe
 local development/testing, not proof of a published or notarized release.
-The current candidate is **0.2.11**; the historical maintenance baseline is
+The current candidate is **0.2.12**; the historical maintenance baseline is
 **0.1.12**. See [NOTICE.md](NOTICE.md) for attribution/license status.
 
 ## Unreleased
@@ -10,6 +10,17 @@ The current candidate is **0.2.11**; the historical maintenance baseline is
 - Refresh public documentation for the unified identity, installation paths,
   imported mappings, supported targets and current acceptance limits.
 - Add contribution/security guidance, attribution notice and issue/PR templates.
+
+## 0.2.12 — development candidate
+
+- Replace ZL+Capture app switching with three complete short ZL taps within one
+  second, switching on the third release. Long holds or other inputs cancel counts.
+- Keep Fn immediate, ordinary Capture single/double, Claude pane selection,
+  recording, scrolling, saved desktop layout and original configuration intact.
+- Disable the former ZL+Capture chord without leaking a Capture action on release.
+- Validation: 122 tests in 19 suites passed, including 42 focused unified tests.
+  Release build, strict ad-hoc signature and archive checks passed. The new
+  gesture passed a user-reported physical round trip between Codex and Claude Code.
 
 ## 0.2.11 — development candidate
 

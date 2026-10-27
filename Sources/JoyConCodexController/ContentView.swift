@@ -57,7 +57,7 @@ struct ContentView: View {
                     ForEach(DesktopTarget.allCases) { target in Text(target.displayName).tag(target) }
                 }.pickerStyle(.segmented)
                 HStack {
-                    Text("ZL + Capture 切换 · Capture 单击／双击保留 · SL / SR 停用")
+                    Text("ZL 连按三次切换（1秒内） · Capture 单击／双击保留 · SL / SR 停用")
                     Spacer()
                     Button("聚焦 \(model.selectedTarget.displayName)") { model.focusTarget() }
                         .disabled(model.activationInProgress)
@@ -508,7 +508,7 @@ private struct MappingRow: View {
             }
 
             if mapping.input == .buttonCapture {
-                Label("Fn · ZL + Capture 切换 Codex / Claude Code", systemImage: "arrow.left.arrow.right")
+                Label("Fn · ZL 连按三次切换 Codex / Claude Code", systemImage: "arrow.left.arrow.right")
             } else {
                 ActionSlotEditor(
                     title: "Fn",
