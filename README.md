@@ -39,6 +39,7 @@ record audio itself, or require an OpenAI/Anthropic API key.
 
 中文速查：**1 秒内完整三击 ZL** 切换应用；**按住 L 录音、松开停止**；
 Claude 双栏中用 **ZL＋摇杆左／右** 选择输入框，全部松开后再操作。
+Claude Code 中**长按方向键右 2 秒**发送 `⌘Return`。
 原 **ZL＋Capture 已停用**，Capture 普通单双击保留。
 
 ## What comes from upstream, and what this fork adds
@@ -134,6 +135,12 @@ the unified session independently of profile edits.
 | Capture single/double | Increase/decrease reasoning effort | Disabled | Disabled |
 | ZL | Hold for immediate Fn; **three complete short taps switch apps** | — | — |
 | SL / SR | Disabled | Disabled | Disabled |
+
+**Long press.** Any mapping can add a long-press tap shortcut (default 2 s,
+500–5000 ms) in the editor. That control's short action then fires on
+release; holding past the threshold sends only the long-press action. In
+Claude Code, holding D-pad right for 2 s sends `⌘Return`, provided the profile still has
+the imported plain Enter there and no saved Claude profile overrides it.
 
 Triple-ZL limits: each press is at most 300 ms, the release-to-next-press gap is
 at most 350 ms, and all three taps finish within one second. Switching happens

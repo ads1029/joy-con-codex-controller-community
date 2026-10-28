@@ -600,6 +600,105 @@ struct UnifiedControllerTests {
         #expect(emitter.desktopActions == [.focusPrompt(.left)])
     }
 
+
+    private var newChat: Shortcut { Shortcut(keyCode: 45, displayLabel: "N", modifiers: [.command]) }
+    private var archive: Shortcut { Shortcut(keyCode: 0, displayLabel: "A", modifiers: [.command, .shift]) }
+    private var closeTab: Shortcut { Shortcut(keyCode: 13, displayLabel: "W", modifiers: [.command]) }
+    private var longPressProfile: MappingProfile {
+        var profile = self.profile
+        profile.update(InputMapping(input: .buttonMinus, primaryAction: .tap(newChat),
+            functionAction: .tap(closeTab), longPressAction: .tap(archive)))
+        return profile
+    }
+
+    @Test("A short press emits the primary tap on release, not on press")
+    func longPressShort() {
+        var session = UnifiedControllerSession()
+        let emitter = UnifiedRecorder()
+        _ = session.process(event(.buttonMinus, .pressed), profile: longPressProfile, testMode: false, emitter: emitter)
+        #expect(emitter.keys.isEmpty)
+        _ = session.process(event(.buttonMinus, .released, 1.9), profile: longPressProfile, testMode: false, emitter: emitter)
+        _ = session.advance(to: origin.addingTimeInterval(5), testMode: false, emitter: emitter)
+        #expect(emitter.keys.map(\.0) == [newChat])
+        #expect(!session.hasDeferredOutput)
+    }
+
+    @Test("Holding past two seconds emits only the long-press action, once")
+    func longPressLong() {
+        var session = UnifiedControllerSession()
+        let emitter = UnifiedRecorder()
+        _ = session.process(event(.buttonMinus, .pressed), profile: longPressProfile, testMode: false, emitter: emitter)
+        #expect(session.hasDeferredOutput)
+        _ = session.advance(to: origin.addingTimeInterval(1.99), testMode: false, emitter: emitter)
+        #expect(emitter.keys.isEmpty)
+        _ = session.advance(to: origin.addingTimeInterval(2), testMode: false, emitter: emitter)
+        _ = session.advance(to: origin.addingTimeInterval(3), testMode: false, emitter: emitter)
+        _ = session.process(event(.buttonMinus, .released, 3.5), profile: longPressProfile, testMode: false, emitter: emitter)
+        #expect(emitter.keys.map(\.0) == [archive])
+        #expect(!session.hasDeferredOutput)
+    }
+
+    @Test("Long press combines with double tap; a held second tap becomes the long press")
+    func longPressWithDoubleTap() {
+        var profile = longPressProfile
+        var minus = profile.mapping(for: .buttonMinus)!
+        minus.doubleTapAction = .tap(closeTab)
+        profile.update(minus)
+        var session = UnifiedControllerSession()
+        let emitter = UnifiedRecorder()
+        for e in [event(.buttonMinus, .pressed), event(.buttonMinus, .released, 0.05),
+            event(.buttonMinus, .pressed, 0.15)] {
+            _ = session.process(e, profile: profile, testMode: false, emitter: emitter)
+        }
+        _ = session.advance(to: origin.addingTimeInterval(2.2), testMode: false, emitter: emitter)
+        _ = session.process(event(.buttonMinus, .released, 2.3), profile: profile, testMode: false, emitter: emitter)
+        _ = session.advance(to: origin.addingTimeInterval(4), testMode: false, emitter: emitter)
+        #expect(emitter.keys.map(\.0) == [archive])
+
+        for e in [event(.buttonMinus, .pressed, 5), event(.buttonMinus, .released, 5.05)] {
+            _ = session.process(e, profile: profile, testMode: false, emitter: emitter)
+        }
+        _ = session.advance(to: origin.addingTimeInterval(6), testMode: false, emitter: emitter)
+        #expect(emitter.keys.map(\.0) == [archive, newChat])
+    }
+
+    @Test("Fn keeps its own action for long-press inputs, and a switch cancels a pending long press")
+    func longPressFunctionLayerAndCancel() {
+        var session = UnifiedControllerSession()
+        let emitter = UnifiedRecorder()
+        for e in [event(.leftTrigger, .pressed), event(.buttonMinus, .pressed, 0.1)] {
+            _ = session.process(e, profile: longPressProfile, testMode: false, emitter: emitter)
+        }
+        _ = session.advance(to: origin.addingTimeInterval(3), testMode: false, emitter: emitter)
+        for e in [event(.buttonMinus, .released, 3.1), event(.leftTrigger, .released, 3.2)] {
+            _ = session.process(e, profile: longPressProfile, testMode: false, emitter: emitter)
+        }
+        #expect(emitter.keys.map(\.0) == [closeTab])
+
+        _ = session.process(event(.buttonMinus, .pressed, 4), profile: longPressProfile, testMode: false, emitter: emitter)
+        _ = session.selectTarget(.claudeCode, testMode: false, emitter: emitter)
+        #expect(!session.hasDeferredOutput)
+        session.completeActivation(generation: session.generation)
+        _ = session.process(event(.buttonMinus, .released, 4.1), profile: longPressProfile, testMode: false, emitter: emitter)
+        _ = session.advance(to: origin.addingTimeInterval(10), testMode: false, emitter: emitter)
+        #expect(emitter.keys.map(\.0) == [closeTab])
+    }
+
+    @Test("Long-press actions must be taps within 500–5000 ms")
+    func longPressValidation() throws {
+        var profile = longPressProfile
+        try profile.validate()
+        var minus = profile.mapping(for: .buttonMinus)!
+        minus.longPressDurationMilliseconds = 300
+        profile.update(minus)
+        #expect(throws: ProfileValidationError.invalidLongPressDuration(input: .buttonMinus, milliseconds: 300)) {
+            try profile.validate()
+        }
+        minus.longPressDurationMilliseconds = nil
+        minus.longPressAction = .hold(archive)
+        profile.update(minus)
+        #expect(throws: ProfileValidationError.invalidLongPressAction(.buttonMinus)) { try profile.validate() }
+    }
 }
 
 private final class UnifiedRecorder: HeldShortcutRecovering, DesktopUIActionEmitting {
@@ -685,6 +784,20 @@ struct UnifiedProfileTests {
         custom.update(InputMapping(input: .leftStickUp, primaryAction: .scrollUp, functionAction: explicitTab))
         try store.save(custom, for: .codex)
         #expect(store.load(for: .codex).profile.mapping(for: .leftStickUp)?.functionAction == explicitTab)
+    }
+
+    @Test("Claude's D-pad right long press sends ⌘Return; Codex and custom bindings are untouched")
+    func claudeConfirmLongPress() throws {
+        let store = UnifiedProfileStore(applicationSupport: FileManager.default.temporaryDirectory)
+        let commandReturn = MappingAction.tap(Shortcut(keyCode: 36, displayLabel: "Return", modifiers: [.command]))
+        let claude = store.adaptImportedBaseline(.starter, for: .claudeCode)
+        try claude.validate()
+        #expect(claude.mapping(for: .dpadRight)?.longPressAction == commandReturn)
+        #expect(store.adaptImportedBaseline(.starter, for: .codex).mapping(for: .dpadRight)?.longPressAction == nil)
+        var custom = MappingProfile.starter
+        let other = MappingAction.tap(Shortcut(keyCode: 53, displayLabel: "Escape"))
+        custom.update(InputMapping(input: .dpadRight, primaryAction: other))
+        #expect(store.adaptImportedBaseline(custom, for: .claudeCode).mapping(for: .dpadRight)?.longPressAction == nil)
     }
 
     @Test("Bundled startup uses its standard domain instead of the forbidden same-name suite")

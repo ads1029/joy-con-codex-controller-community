@@ -486,7 +486,10 @@ private struct MappingListItem: View {
         let doubleTap = mapping.doubleTapAction.map {
             " · Double: \($0.formatted) (\(mapping.resolvedDoubleTapIntervalMilliseconds) ms)"
         } ?? ""
-        return "Default: \(primary) · Fn: \(function)\(doubleTap)"
+        let longPress = mapping.longPressAction.map {
+            " · Long: \($0.formatted) (\(mapping.resolvedLongPressDurationMilliseconds) ms)"
+        } ?? ""
+        return "Default: \(primary) · Fn: \(function)\(doubleTap)\(longPress)"
     }
 }
 
@@ -539,12 +542,46 @@ private struct MappingRow: View {
                 )
                 .font(.caption)
             }
+
+            ActionSlotEditor(
+                title: "Long",
+                action: mapping.longPressAction,
+                fallbackAction: mapping.primaryAction
+            ) { action in
+                var copy = mapping
+                copy.longPressAction = action
+                copy.longPressDurationMilliseconds = action == nil
+                    ? nil
+                    : copy.resolvedLongPressDurationMilliseconds
+                onChange(copy)
+            }
+
+            if mapping.longPressAction != nil {
+                Stepper(
+                    "Long-press after: \(mapping.resolvedLongPressDurationMilliseconds) ms",
+                    value: longPressDurationBinding,
+                    in: 500...5_000,
+                    step: 100
+                )
+                .font(.caption)
+            }
         }
         .padding(.vertical, 10)
     }
 
     private var starterMapping: InputMapping? {
         MappingProfile.starter.mapping(for: mapping.input)
+    }
+
+    private var longPressDurationBinding: Binding<Int> {
+        Binding(
+            get: { mapping.resolvedLongPressDurationMilliseconds },
+            set: { milliseconds in
+                var copy = mapping
+                copy.longPressDurationMilliseconds = milliseconds
+                onChange(copy)
+            }
+        )
     }
 
     private var doubleTapIntervalBinding: Binding<Int> {

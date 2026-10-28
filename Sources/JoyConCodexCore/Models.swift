@@ -299,12 +299,15 @@ public enum MappingLayer: String, Codable, Sendable {
 
 public struct InputMapping: Codable, Equatable, Sendable, Identifiable {
     public static let defaultDoubleTapIntervalMilliseconds = 280
+    public static let defaultLongPressDurationMilliseconds = 2_000
 
     public var input: ControllerInput
     public var primaryAction: MappingAction?
     public var functionAction: MappingAction?
     public var doubleTapAction: MappingAction?
     public var doubleTapIntervalMilliseconds: Int?
+    public var longPressAction: MappingAction?
+    public var longPressDurationMilliseconds: Int?
 
     public var id: ControllerInput { input }
 
@@ -313,17 +316,30 @@ public struct InputMapping: Codable, Equatable, Sendable, Identifiable {
         primaryAction: MappingAction?,
         functionAction: MappingAction? = nil,
         doubleTapAction: MappingAction? = nil,
-        doubleTapIntervalMilliseconds: Int? = nil
+        doubleTapIntervalMilliseconds: Int? = nil,
+        longPressAction: MappingAction? = nil,
+        longPressDurationMilliseconds: Int? = nil
     ) {
         self.input = input
         self.primaryAction = primaryAction
         self.functionAction = functionAction
         self.doubleTapAction = doubleTapAction
         self.doubleTapIntervalMilliseconds = doubleTapIntervalMilliseconds
+        self.longPressAction = longPressAction
+        self.longPressDurationMilliseconds = longPressDurationMilliseconds
     }
 
     public var resolvedDoubleTapIntervalMilliseconds: Int {
         doubleTapIntervalMilliseconds ?? Self.defaultDoubleTapIntervalMilliseconds
+    }
+
+    public var resolvedLongPressDurationMilliseconds: Int {
+        longPressDurationMilliseconds ?? Self.defaultLongPressDurationMilliseconds
+    }
+
+    /// Single, double and long presses all defer the primary tap to release.
+    public var usesDeferredTaps: Bool {
+        doubleTapAction != nil || longPressAction != nil
     }
 
     public func action(for layer: MappingLayer) -> MappingAction? {
@@ -375,6 +391,8 @@ public enum ProfileValidationError: LocalizedError, Equatable, Sendable {
     case unexpectedFunctionLayerShortcut(input: ControllerInput, layer: MappingLayer)
     case invalidDoubleTapAction(ControllerInput)
     case invalidDoubleTapInterval(input: ControllerInput, milliseconds: Int)
+    case invalidLongPressAction(ControllerInput)
+    case invalidLongPressDuration(input: ControllerInput, milliseconds: Int)
 
     public var errorDescription: String? {
         switch self {
@@ -398,6 +416,10 @@ public enum ProfileValidationError: LocalizedError, Equatable, Sendable {
             "\(input.displayName) double-tap actions must be tap shortcuts and require a primary tap shortcut."
         case let .invalidDoubleTapInterval(input, milliseconds):
             "\(input.displayName) uses an invalid double-tap window of \(milliseconds) ms; use 120–800 ms."
+        case let .invalidLongPressAction(input):
+            "\(input.displayName) long-press actions must be tap shortcuts and require a primary tap shortcut."
+        case let .invalidLongPressDuration(input, milliseconds):
+            "\(input.displayName) uses an invalid long-press duration of \(milliseconds) ms; use 500–5000 ms."
         }
     }
 }
@@ -431,6 +453,22 @@ public extension MappingProfile {
                     throw ProfileValidationError.invalidDoubleTapInterval(
                         input: mapping.input,
                         milliseconds: interval
+                    )
+                }
+            }
+            if let longPressAction = mapping.longPressAction {
+                guard
+                    longPressAction.kind == .tap,
+                    mapping.primaryAction?.kind == .tap
+                else {
+                    throw ProfileValidationError.invalidLongPressAction(mapping.input)
+                }
+                try validate(longPressAction, for: mapping.input, layer: .primary)
+                let duration = mapping.resolvedLongPressDurationMilliseconds
+                guard (500...5_000).contains(duration) else {
+                    throw ProfileValidationError.invalidLongPressDuration(
+                        input: mapping.input,
+                        milliseconds: duration
                     )
                 }
             }

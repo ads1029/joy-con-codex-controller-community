@@ -45,7 +45,16 @@ public struct UnifiedProfileStore: Sendable {
     /// Saved per-target profiles and arbitrary user shortcuts remain authoritative.
     public func adaptImportedBaseline(_ profile: MappingProfile, for target: DesktopTarget) -> MappingProfile {
         var result = reservedControlsDisabled(profile)
-        guard target == .codex else { return result }
+        guard target == .codex else {
+            // Hold D-pad right to send ⌘Return when it is still the plain Enter key.
+            if var confirm = result.mapping(for: .dpadRight),
+               confirm.primaryAction == .tap(Shortcut(keyCode: 36, displayLabel: "Return")),
+               confirm.longPressAction == nil {
+                confirm.longPressAction = .tap(Shortcut(keyCode: 36, displayLabel: "Return", modifiers: [.command]))
+                result.update(confirm)
+            }
+            return result
+        }
         let replacements: [(ControllerInput, Shortcut, Shortcut)] = [
             (.leftStickUp,
              Shortcut(keyCode: 33, displayLabel: "[", modifiers: [.command, .shift]),
