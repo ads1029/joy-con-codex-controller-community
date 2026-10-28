@@ -7,6 +7,8 @@ The current candidate is **0.2.12**; the historical maintenance baseline is
 
 ## Unreleased
 
+- Adopt MIT for this fork following upstream permission confirmed by Minjie Huang
+  on 2026-10-28; retain upstream attribution and update licensing documentation.
 - Refresh public documentation for the unified identity, installation paths,
   imported mappings, supported targets and current acceptance limits.
 - Add contribution/security guidance, attribution notice and issue/PR templates.

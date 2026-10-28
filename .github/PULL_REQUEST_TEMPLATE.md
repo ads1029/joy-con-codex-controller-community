@@ -15,4 +15,4 @@ a fork enhancement, or new functionality.
 - [ ] Target isolation, held-output cleanup, Test Mode and custom profiles are preserved where relevant.
 - [ ] Behavior/configuration changes update README, relevant OpenSpec and operating docs.
 - [ ] No generated builds, local profiles, receipts, private conversations or credentials are included.
-- [ ] Upstream attribution is preserved; no new license or public release is implied.
+- [ ] Upstream attribution and applicable MIT/third-party notices are preserved; no public release is implied.

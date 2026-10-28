@@ -1,4 +1,4 @@
-# Source attribution and license status
+# Source attribution and licensing
 
 ## Upstream source
 
@@ -13,18 +13,20 @@ are inherited. Fork enhancements are described in [CHANGELOG.md](CHANGELOG.md)
 and the [fork policy](Docs/Community-Fork-Maintenance.md). Retained source target
 names and older artwork reflect that history.
 
-## Recorded license status
+## License and authorization record
 
-No `LICENSE` file was detected in the tracked upstream snapshot used for this
-fork. This notice does not assert that upstream licensing can never change;
-check the relevant source revision before a distribution decision.
+This fork is distributed under the [MIT License](LICENSE), with copyright
+attribution retained for Jinjiang, upstream contributors and Minjie Huang.
 
-This repository does not establish an independent license over inherited code.
-This notice is attribution/status documentation, not a license grant. Do not
-interpret visible source, a fork or an ad-hoc build as a whole-repository MIT,
-Apache or other license. The recorded release policy requires explicit upstream
-permission or a clear applicable license before public build redistribution or
-an independently licensed release.
+The tracked upstream snapshot originally contained no detected `LICENSE`.
+On 2026-10-28, fork maintainer Minjie Huang confirmed that the upstream
+maintainer had directly permitted adding MIT to this fork. This repository
+adopts MIT on the basis of that reported permission. This record does not
+claim that the upstream repository itself has published the same license.
+
+Keep the copyright and permission notices in copies or substantial portions of
+the software. MIT licensing does not imply trademark rights, product endorsement,
+notarization, or that a particular binary has passed release checks.
 
 ## Other references
 

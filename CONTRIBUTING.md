@@ -2,8 +2,10 @@
 
 This is the development fork for Joy-Con Unified Controller. Read the
 [README](README.md), [design/acceptance contract](Docs/Unified-Controller.md) and
-[attribution status](NOTICE.md) before changing controller behavior. No contributor
-license agreement or new whole-repository license is introduced by this file.
+[attribution and authorization record](NOTICE.md) before changing controller
+behavior. This fork uses the [MIT License](LICENSE); no separate contributor
+license agreement is required. Submit only material you have permission to
+contribute under MIT and retain applicable third-party notices.
 
 ## Report a problem
 
@@ -64,5 +66,5 @@ Keep generated builds, profiles, receipts and machine-specific state out of Git.
 Preserve upstream attribution and avoid unrelated cleanup in the same change.
 
 Do not push numeric release tags as part of an ordinary contribution: they trigger
-public release publication. Signing, notarization, distribution and the unresolved
-inherited-source license status require separate release review.
+public release publication. Signing, notarization, distribution and preservation
+of applicable license/attribution notices require separate release review.

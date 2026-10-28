@@ -36,4 +36,4 @@ wrong application.
 
 For ordinary permission/upgrade problems, follow
 [Accessibility upgrades](Docs/Accessibility-Upgrades.md). See
-[NOTICE.md](NOTICE.md) for the separate inherited-source license status.
+[NOTICE.md](NOTICE.md) for source attribution and the MIT authorization record.

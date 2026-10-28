@@ -15,9 +15,8 @@ use. The app runs in the menu bar and routes input to the selected desktop app.
 Built on [Jinjiang/joy-con-codex-micro](https://github.com/Jinjiang/joy-con-codex-micro),
 with upstream history and attribution retained. This is an independent community
 fork. Upstream provides the controller foundation; this fork integrates the
-multi-agent desktop workflow described below. **The inherited license remains
-unresolved:** see [License and attribution](#license-and-attribution) before
-redistributing source or builds.
+multi-agent desktop workflow described below. Licensed under [MIT](LICENSE),
+with upstream attribution and the authorization record in [NOTICE.md](NOTICE.md).
 
 ## A controller workflow for coding agents
 
@@ -75,7 +74,8 @@ Desktop app updates can change shortcuts and accessibility controls.
 ## Build and try it
 
 The current candidate has been built and exercised locally. It is not presented
-as a notarized public binary release; the upstream license status is unresolved.
+as a notarized public binary release. Source is available under [MIT](LICENSE);
+signing, notarization and hardware acceptance remain separate release checks.
 
 ```sh
 swift test
@@ -221,9 +221,8 @@ Credit belongs to Jinjiang and the contributors recorded in Git history for the
 inherited controller foundation. This fork's additions are maintained separately
 and do not imply endorsement by Nintendo, Apple, OpenAI or Anthropic.
 
-No `LICENSE` was detected in the tracked upstream snapshot. This repository
-**does not assert a repository-wide MIT, Apache or other open-source license**
-over inherited code. Public source visibility and GitHub's fork mechanism do not
-establish such a license. Clarify the upstream permission/license before public
-binary redistribution or an independently licensed release. [NOTICE.md](NOTICE.md)
-records the status; it is attribution documentation, not a license grant.
+This fork is distributed under the [MIT License](LICENSE). On 2026-10-28,
+maintainer Minjie Huang confirmed receiving permission from the upstream
+maintainer to add MIT to this fork. [NOTICE.md](NOTICE.md) records that basis and
+the inherited source attribution. Preserve the copyright and license notices
+when redistributing copies or substantial portions of the software.

@@ -72,8 +72,8 @@ Numeric `X.Y.Z` tag pushes trigger `.github/workflows/release.yml`, which builds
 and publishes an ad-hoc-signed Apple-silicon GitHub Release. A normal branch push
 does not publish a release. Do not create a tag merely to save a candidate.
 
-Before publishing, resolve the recorded attribution/license gate, review release
+Before publishing, preserve the MIT license and attribution notices, review release
 notes and remaining hardware checks, align app metadata/build version, verify
 artifacts, and complete signing/notarization decisions for the intended audience.
-See [NOTICE.md](../NOTICE.md). This documentation update does not resolve that
-gate or claim a public release.
+See [LICENSE](../LICENSE) and [NOTICE.md](../NOTICE.md). Adding the license does
+not itself publish a binary release or establish signing/notarization acceptance.

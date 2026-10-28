@@ -36,13 +36,12 @@ metadata and documentation when changing them.
 
 ## Attribution and license status
 
-The tracked upstream snapshot contains no detected `LICENSE`. No independent
-license over inherited source has been established here. Keep upstream links,
-author attribution and history. Do not add a whole-repository MIT/Apache license
-without establishing authority for inherited code. Public build redistribution
-and an independently licensed release remain gated on explicit upstream
-permission or a clear applicable license. [NOTICE.md](../NOTICE.md) records this
-status without granting rights.
+This fork is distributed under [MIT](../LICENSE). On 2026-10-28, Minjie Huang
+confirmed direct permission from the upstream maintainer to add MIT to this
+fork; [NOTICE.md](../NOTICE.md) records that authorization basis. Keep upstream
+links, author attribution, Git history and the MIT copyright/permission notices.
+Check attribution and licensing separately for any newly imported code or assets.
+Binary signing, notarization and release acceptance still require their own checks.
 
 ## Branches and upstream sync
 
