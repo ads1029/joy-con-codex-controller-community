@@ -2,16 +2,25 @@
 
 Changes in the Community fork are recorded here. Candidate versions describe
 local development/testing, not proof of a published or notarized release.
-The current candidate is **0.2.12**; the historical maintenance baseline is
+The current release is **0.3.0**; the historical maintenance baseline is
 **0.1.12**. See [NOTICE.md](NOTICE.md) for attribution/license status.
 
-## Unreleased
+## 0.3.0 — first community release
 
+- Add configurable long-press actions (default 2 s, 500–5000 ms) in the mapping
+  editor. A control with a long press sends its short action on release; holding
+  past the threshold sends only the long-press action, without a later short tap.
+  Fn-layer actions are unchanged, and app/input switches cancel pending holds.
+- In Claude Code, holding D-pad right for 2 s sends `⌘Return` while the imported
+  profile still maps it to plain Return.
 - Adopt MIT for this fork following upstream permission confirmed by Minjie Huang
   on 2026-10-28; retain upstream attribution and update licensing documentation.
 - Refresh public documentation for the unified identity, installation paths,
   imported mappings, supported targets and current acceptance limits.
 - Add contribution/security guidance, attribution notice and issue/PR templates.
+- Validation: 128 tests in 19 suites passed, including 48 focused unified tests.
+  The Claude D-pad-right long press passed a user-reported physical check.
+  First release published by the tag workflow: ad-hoc signed, not notarized.
 
 ## 0.2.12 — development candidate
 

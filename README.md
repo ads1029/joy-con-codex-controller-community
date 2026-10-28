@@ -10,7 +10,7 @@ use. The app runs in the menu bar and routes input to the selected desktop app.
   <img src="Assets/AppIcon/AppIcon.png" alt="Joy-Con Unified Controller icon" width="128">
 </p>
 
-**Development candidate: 0.2.12 · macOS 14+ · Swift 6 · 122 automated tests**
+**Release 0.3.0 · macOS 14+ · Swift 6 · 128 automated tests**
 
 Built on [Jinjiang/joy-con-codex-micro](https://github.com/Jinjiang/joy-con-codex-micro),
 with upstream history and attribution retained. This is an independent community
@@ -80,7 +80,7 @@ signing, notarization and hardware acceptance remain separate release checks.
 
 ```sh
 swift test
-bash Scripts/build-release.sh 0.2.12
+bash Scripts/build-release.sh 0.3.0
 ```
 
 The build script creates `dist/JoyConUnifiedController.app`, an architecture-named
@@ -158,7 +158,8 @@ unambiguous side-by-side inputs and reports failure rather than guessing.
 
 | Check | Evidence |
 | --- | --- |
-| Automated | **122 tests in 19 suites**, including **42 unified transition/profile tests**, passed for 0.2.12 |
+| Automated | **128 tests in 19 suites**, including **48 unified transition/profile tests**, passed for 0.3.0 |
+| Long press | User confirmed Claude Code D-pad right: short press sends Return, a 2 s hold sends `⌘Return`, on 0.3.0 code |
 | Package | Release build, strict ad-hoc signature, archive CRC, executable mode and binary/checksum checks passed |
 | Triple-ZL switch | User physically confirmed Codex → Claude Code → Codex on 0.2.12 |
 | Claude input workflow | User confirmed left/right selection, recording in each input, stop on release and right-conversation scrolling on earlier candidates |

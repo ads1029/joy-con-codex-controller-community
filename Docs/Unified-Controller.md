@@ -1,6 +1,6 @@
 # Unified desktop controller: behavior and acceptance
 
-Current development candidate: **0.2.12**. This document describes the implemented
+Current release: **0.3.0**. This document describes the implemented
 contract and separates automated checks from physical acceptance. Historical
 candidate changes are in [CHANGELOG.md](../CHANGELOG.md).
 
@@ -206,6 +206,10 @@ fix. User-reported physical acceptance is distinct from tool-observed native
 state and unit tests. Results on older candidates do not certify every gesture
 on 0.2.11. Codex native UI inspection was unavailable to the computer-use tool;
 its output checks above came from the user's physical tests.
+
+0.3.0 validation: **128 tests in 19 suites passed**, including 48 unified
+transition/profile tests. 0.3.0 adds configurable long-press actions; in Claude
+Code, holding D-pad right for 2 s sends `⌘Return` (user-confirmed physically).
 
 0.2.12 validation: **122 tests in 19 suites passed**, including 42 unified
 transition/profile tests. Release/signature/archive checks and the new gesture

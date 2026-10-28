@@ -1,6 +1,6 @@
 # Accessibility upgrades and recovery
 
-Applies to **Joy-Con Unified Controller 0.2.12**. The bundle identifier is
+Applies to **Joy-Con Unified Controller 0.3.0**. The bundle identifier is
 `com.ads1029.JoyConUnifiedController`. Do not reset the original controller's
 permissions or grant a backup/dist copy by mistake.
 
@@ -30,7 +30,7 @@ future distribution task; these builds are not notarized.
 Build first, then explicitly install to your chosen canonical path:
 
 ```sh
-bash Scripts/build-release.sh 0.2.12
+bash Scripts/build-release.sh 0.3.0
 bash Scripts/install-local-release.sh \
   "dist/JoyConUnifiedController.app" \
   "/Applications/JoyConUnifiedController.app"

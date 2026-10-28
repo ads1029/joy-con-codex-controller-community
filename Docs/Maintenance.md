@@ -1,9 +1,9 @@
 # Maintenance and release policy
 
-Updated 2026-10-25. The original **0.1.12** remains the historical maintenance
-baseline. Active development is reopened for **0.2.12**, the unified Codex /
-Claude Desktop Code candidate. It is installed separately; it has not been
-promoted to a stable public release.
+Updated 2026-10-28. The original **0.1.12** remains the historical maintenance
+baseline. **0.3.0** is the first community release of the unified Codex /
+Claude Desktop Code controller, published by the tag workflow as an ad-hoc-signed,
+non-notarized Apple-silicon build.
 
 ## Scope
 
@@ -35,9 +35,9 @@ they do not require rebuilding, reinstalling or resetting permissions.
 swift test
 # When the CLI is installed:
 openspec validate --all --strict
-bash Scripts/build-release.sh 0.2.12
+bash Scripts/build-release.sh 0.3.0
 codesign --verify --deep --strict dist/JoyConUnifiedController.app
-(cd dist && shasum -a 256 -c JoyConUnifiedController-0.2.12-macOS-arm64.zip.sha256)
+(cd dist && shasum -a 256 -c JoyConUnifiedController-0.3.0-macOS-arm64.zip.sha256)
 git diff --check
 ```
 
@@ -48,6 +48,7 @@ checksum checks passed; OpenSpec strict validation was not run because its CLI
 was unavailable. This is a recorded result, not a guarantee for later commits. The 0.2.12
 triple-ZL change passed 122 tests in 19 suites (42 focused unified tests);
 release/signature/archive checks and physical acceptance are recorded separately.
+The 0.3.0 long-press change passed 128 tests in 19 suites (48 focused unified tests).
 
 ## Physical smoke checks
 
