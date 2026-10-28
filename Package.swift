@@ -1,6 +1,30 @@
 // swift-tools-version: 6.0
 
+import Foundation
 import PackageDescription
+
+// Command Line Tools ship Swift Testing outside the default search paths.
+// Xcode finds its own copy; adding the CLT framework there mismatches the
+// @Test macro and library, so only add these flags for a CLT toolchain.
+let commandLineToolsDirectory = "/Library/Developer/CommandLineTools"
+let activeDeveloperDirectory = ProcessInfo.processInfo.environment["DEVELOPER_DIR"]
+    ?? (try? FileManager.default.destinationOfSymbolicLink(atPath: "/var/db/xcode_select_link"))
+    ?? ""
+let usesCommandLineTools = activeDeveloperDirectory.hasPrefix(commandLineToolsDirectory)
+let testingFrameworks = "\(commandLineToolsDirectory)/Library/Developer/Frameworks"
+let testingSwiftSettings: [SwiftSetting] = usesCommandLineTools
+    ? [.unsafeFlags(["-F", testingFrameworks])]
+    : []
+let testingLinkerSettings: [LinkerSetting] = usesCommandLineTools
+    ? [
+        .unsafeFlags([
+            "-F", testingFrameworks,
+            "-Xlinker", "-rpath", "-Xlinker", testingFrameworks,
+            "-Xlinker", "-rpath", "-Xlinker", "\(commandLineToolsDirectory)/Library/Developer/usr/lib",
+        ]),
+        .linkedFramework("Testing"),
+    ]
+    : []
 
 let package = Package(
     name: "joy-con-codex-controller-community",
@@ -46,27 +70,8 @@ let package = Package(
         .testTarget(
             name: "JoyConCodexCoreTests",
             dependencies: ["JoyConCodexCore"],
-            swiftSettings: [
-                .unsafeFlags([
-                    "-F",
-                    "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
-                ]),
-            ],
-            linkerSettings: [
-                .unsafeFlags([
-                    "-F",
-                    "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
-                    "-Xlinker",
-                    "-rpath",
-                    "-Xlinker",
-                    "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
-                    "-Xlinker",
-                    "-rpath",
-                    "-Xlinker",
-                    "/Library/Developer/CommandLineTools/Library/Developer/usr/lib",
-                ]),
-                .linkedFramework("Testing"),
-            ]
+            swiftSettings: testingSwiftSettings,
+            linkerSettings: testingLinkerSettings
         ),
     ],
     swiftLanguageModes: [.v6]
