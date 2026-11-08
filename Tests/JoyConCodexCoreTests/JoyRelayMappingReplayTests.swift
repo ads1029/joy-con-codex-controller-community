@@ -126,7 +126,7 @@ struct JoyRelayMappingReplayTests {
             ? [.key(123, [], .tap), .key(124, [], .tap)]
             : [.desktop(.focusPrompt(.left)), .desktop(.focusPrompt(.right))]
         let expected: [ReplayOutput] = [
-            .key(33, modifiers, .tap), .key(30, modifiers, .tap),
+            .key(30, modifiers, .tap), .key(33, modifiers, .tap),
             .scroll(.up), .scroll(.up), .scroll(.down), .scroll(.toBottom),
         ] + horizontal + [
             .key(53, [], .tap),

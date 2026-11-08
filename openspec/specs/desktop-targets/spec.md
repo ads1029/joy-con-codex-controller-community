@@ -183,7 +183,7 @@ target only. This specializes the core profile-configuration reset contract.
 
 ### Requirement: Route Switch Pro right-hand controls without modifying saved profiles
 The system SHALL apply a runtime-only overlay to first-generation Switch Pro
-right-hand inputs. R and ZR SHALL navigate previous/next conversations using
+right-hand inputs. R and ZR SHALL navigate next/previous conversations using
 the selected target's chords; right stick up/down SHALL scroll, and R3 SHALL
 jump to the conversation bottom. Left-hand controls, Capture, Codex horizontal
 right-stick mappings and Joy-Con mappings SHALL remain unchanged.

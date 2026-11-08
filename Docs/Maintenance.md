@@ -97,7 +97,7 @@ The 0.3.0 long-press change passed 128 tests in 19 suites (48 focused unified te
 | Switching | Three quick ZL taps change target; single/double/long Fn use does not; ZL+Capture stays disabled; transition cleanup and readiness remain required |
 | Ordinary actions | Capture single/double, repeat boundaries, dictation start/stop, scrolling and bottom |
 | Claude panes | ZL+left-stick left/right, or Pro right-stick left/right, selects the input; recording/scrolling follow it |
-| Switch Pro | R/ZR switch conversations; right stick up/down scrolls and R3 jumps to bottom; L dictation and Capture retain shared actions |
+| Switch Pro | R goes to the next conversation and ZR to the previous one; right stick up/down scrolls and R3 jumps to bottom; L dictation and Capture retain shared actions |
 | Codex compatibility | Sidebar chat navigation and panel shortcuts match the installed app |
 | Connection | Reconnect and launch-with-connected restore the selected desktop/windows and show one HUD |
 | Failures | Closed window, deleted desktop, changed display, missing app or denied permission produce visible errors |

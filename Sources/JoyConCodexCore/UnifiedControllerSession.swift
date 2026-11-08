@@ -64,7 +64,7 @@ public struct UnifiedControllerSession: Sendable {
         guard event.layout == .switchProRightHand else { return nil }
         switch event.input {
         case .rightShoulder, .rightTrigger:
-            let previous = event.input == .rightShoulder
+            let previous = event.input == .rightTrigger
             let modifiers: Set<KeyModifier> = target == .codex ? [.command, .option] : [.command, .shift]
             return .tap(Shortcut(keyCode: previous ? 33 : 30, displayLabel: previous ? "[" : "]", modifiers: modifiers))
         case .rightStickUp: return .scrollUp

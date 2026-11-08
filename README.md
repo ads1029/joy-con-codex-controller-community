@@ -136,7 +136,7 @@ profile; the override never writes to it.
 
 | Pro control | Codex | Claude Code |
 | --- | --- | --- |
-| R / ZR | Previous / next chat (`⌘⌥[` / `⌘⌥]`) | Previous / next session (`⌘⇧[` / `⌘⇧]`) |
+| R / ZR | Next / previous chat (`⌘⌥]` / `⌘⌥[`) | Next / previous session (`⌘⇧]` / `⌘⇧[`) |
 | Right stick up / down | Scroll the conversation; hold to repeat | Scroll the selected conversation; hold to repeat |
 | Right stick press (R3) | Jump to the conversation bottom | Jump to the selected conversation bottom |
 | Right stick left / right | Shared profile (normally caret arrows) | Select the left / right visible input directly; no ZL needed |

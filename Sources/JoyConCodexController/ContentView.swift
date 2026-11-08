@@ -321,7 +321,7 @@ struct ContentView: View {
                 }
 
                 if model.supportedControllers.first?.side == .switchPro {
-                    Text("Switch Pro 右手：R / ZR 上一条 / 下一条会话，右摇杆上下滚动、按下到底；Claude 双栏中左右切输入框。下方仍显示共用的基础映射。")
+                    Text("Switch Pro 右手：R / ZR 下一条 / 上一条会话，右摇杆上下滚动、按下到底；Claude 双栏中左右切输入框。下方仍显示共用的基础映射。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)

@@ -62,7 +62,7 @@ struct UnifiedControllerTests {
             send(.rightStickPress, .pressed, 3)
             _ = session.advance(to: origin.addingTimeInterval(4), testMode: false, emitter: rec)
             send(.rightStickPress, .released, 4.1)
-            #expect(rec.keys.map { $0.0.keyCode } == [33, 30])
+            #expect(rec.keys.map { $0.0.keyCode } == [30, 33])
             #expect(rec.keys.map { $0.1 } == [.tap, .tap])
             let modifiers: Set<KeyModifier> = target == .codex ? [.command, .option] : [.command, .shift]
             #expect(rec.keys.allSatisfy { $0.0.modifiers == modifiers })
