@@ -47,8 +47,11 @@ the real mapping session, Switch Pro navigation and shared controls for both
 targets, Test Mode suppression, and Claude Code's D-pad right short/long press.
 It does not launch a desktop app, send system input or access live profiles.
 The [macOS test workflow](../.github/workflows/test.yml) runs the full suite and
-compiles the hardware probe on branch pushes and pull requests; it does not
-install or release anything.
+passes synthetic R/ZR presses and releases through the real GameController
+adapter. This checks the bindings and layout tags without hardware. Run it
+locally with `bash Scripts/check-switch-pro-adapter.sh --snapshot`. The workflow
+does not install or release anything. For mapping changes, open a PR against
+`codex/unified-desktop-controller` and wait for the required macOS check to pass.
 
 To check the actual GameController adapter bindings, leave only one
 first-generation Switch Pro connected and run:
