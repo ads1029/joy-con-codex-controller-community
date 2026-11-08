@@ -16,11 +16,12 @@ fi
 script_directory="$(cd "$(dirname "$0")" && pwd)"
 repository_root="$(cd "$script_directory/.." && pwd)"
 application_name="JoyConUnifiedController"
+bundle_name="JoyRelay"
 resource_bundle_name="joy-con-codex-controller-community_JoyConCodexController.bundle"
 architecture="$(uname -m)"
 artifact_directory="$repository_root/dist"
-application_bundle="$artifact_directory/$application_name.app"
-archive_name="$application_name-$release_version-macOS-$architecture.zip"
+application_bundle="$artifact_directory/$bundle_name.app"
+archive_name="$bundle_name-$release_version-macOS-$architecture.zip"
 archive_path="$artifact_directory/$archive_name"
 
 cd "$repository_root"
@@ -59,6 +60,8 @@ install -m 644 \
 install -m 644 \
     "$repository_root/Assets/AppIcon/AppIcon.icns" \
     "$application_bundle/Contents/Resources/AppIcon.icns"
+install -m 644 "$repository_root/LICENSE" "$application_bundle/Contents/Resources/LICENSE"
+install -m 644 "$repository_root/NOTICE.md" "$application_bundle/Contents/Resources/NOTICE.md"
 ditto \
     "$resource_bundle_path" \
     "$application_bundle/Contents/Resources/$resource_bundle_name"

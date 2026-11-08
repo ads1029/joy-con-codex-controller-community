@@ -74,7 +74,7 @@ struct MenuBarCompanionView: View {
             Button {
                 NSApplication.shared.terminate(nil)
             } label: {
-                Label("Quit Joy-Con Unified Controller", systemImage: "power")
+                Label("Quit JoyRelay", systemImage: "power")
             }
             .keyboardShortcut("q")
         }

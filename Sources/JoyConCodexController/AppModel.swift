@@ -10,6 +10,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var recentResult: MappingResult?
     @Published private(set) var statusMessage = "Starting controller discovery…"
     @Published private(set) var feedbackMessage = "Visual feedback is ready."
+    @Published private(set) var lastVoiceDiagnostic = "尚未触发语音输入"
+    @Published private(set) var rawControlsDiagnostic = "等待左 Joy-Con 原始输入"
     @Published private(set) var accessibilityTrusted = false
     @Published private(set) var selectedTarget: DesktopTarget = .codex
     @Published private(set) var activationInProgress = false
@@ -142,6 +144,9 @@ final class AppModel: ObservableObject {
         adapter.onEvent = { [weak self] event in
             self?.handle(event)
         }
+        adapter.onRawControlsDiagnostic = { [weak self] diagnostic in
+            self?.rawControlsDiagnostic = diagnostic
+        }
         adapter.onInputSourceStatus = { [weak self] status in
             self?.feedbackMessage = status
         }
@@ -157,6 +162,7 @@ final class AppModel: ObservableObject {
                 self?.clockTask?.cancel()
                 self?.cancelDesktopRestore()
                 self?.releaseKeyboardState(reason: "Application terminating")
+                try? self?.emitter.advanceDictationRelease(force: true)
             }
         }
         clockTask = Task { @MainActor [weak self] in
@@ -241,7 +247,7 @@ final class AppModel: ObservableObject {
         panel.allowedContentTypes = [.json]
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
-        panel.message = "Choose a Joy-Con Unified Controller profile."
+        panel.message = "Choose a JoyRelay profile."
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
         do {
@@ -423,8 +429,17 @@ final class AppModel: ObservableObject {
         consume(session.process(event, profile: profile, testMode: testMode, emitter: emitter))
     }
 
+    private func syncVoiceDiagnostic() {
+        if !emitter.lastVoiceDiagnostic.isEmpty, lastVoiceDiagnostic != emitter.lastVoiceDiagnostic {
+            lastVoiceDiagnostic = emitter.lastVoiceDiagnostic
+        }
+    }
+
     private func advanceClock() {
         for result in session.advance(to: .now, testMode: testMode, emitter: emitter) { consume(result) }
+        do { try emitter.advanceDictationRelease() }
+        catch { consume(.failed(error.localizedDescription)) }
+        syncVoiceDiagnostic()
     }
 
     private func consume(_ result: UnifiedSessionResult) {
@@ -468,6 +483,9 @@ final class AppModel: ObservableObject {
                 }
                 feedbackMessage = mappingFailureMessage
                     ?? "\(selectedTarget.displayName) · \(mapping.layer.rawValue) · \(mapping.action?.formatted ?? "Disabled")"
+                if mappingFailureMessage == nil, emitter.isPreparingCodexDictation {
+                    feedbackMessage += "\nCodex 麦克风正在准备；首次可能需要几秒。松开 L 会取消。"
+                }
                 if mappingFailureMessage == nil, selectedTarget == .codex,
                    mapping.action?.scrollCommand != nil, !emitter.lastScrollDiagnostics.isEmpty {
                     feedbackMessage += "\n" + emitter.lastScrollDiagnostics
@@ -486,6 +504,7 @@ final class AppModel: ObservableObject {
             }
         }
         accessibilityTrusted = AccessibilityPermission.isTrusted()
+        syncVoiceDiagnostic()
     }
 
     private func startActivation(generation: UInt64) {

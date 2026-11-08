@@ -17,6 +17,20 @@ final class DesktopApplicationDriver {
         let point: CGPoint
         let prompt: AXUIElement
     }
+    struct CodexDictationPreparation {
+        let application: NSRunningApplication
+        let window: AXUIElement
+        let began: ContinuousClock.Instant
+        var nextAttempt: ContinuousClock.Instant
+    }
+    struct CodexDictationControl {
+        let pid: pid_t
+        let window: AXUIElement
+        let scope: AXUIElement
+        let button: AXUIElement
+    }
+    private var codexAccessibilityRequest: (pid: pid_t, name: String)?
+    private(set) var lastCodexDictationDiagnostics = ""
     private var codePageCache: (window: AXUIElement, page: AXUIElement)?
     private var scrollCache: (pid: pid_t, prompt: AXUIElement, area: AXUIElement)?
     private var rememberedPrompt: (pid: pid_t, window: AXUIElement, prompt: AXUIElement)?
@@ -80,6 +94,7 @@ final class DesktopApplicationDriver {
         guard isFrontmost(target) else {
             throw DesktopControlError.unavailable("Could not focus \(target.displayName).")
         }
+        if target == .codex { requestCodexWebAccessibility(application) }
         if target == .claudeCode {
             try await prepareClaudeAccessibility(application)
             let initial = try window(of: application)
@@ -140,9 +155,7 @@ final class DesktopApplicationDriver {
             throw DesktopControlError.unavailable("Claude's window geometry is unavailable.")
         }
         var prompts: [(element: AXUIElement, frame: CGRect)] = []
-        for node in scan(window) where
-            (node.role == kAXTextAreaRole || node.role == kAXTextFieldRole)
-                && DesktopAccessibilityPolicy.isPrompt(node.label) {
+        for node in scan(window, composerFirst: true) where isClaudePrompt(node) {
             if let rect = frame(of: node.element), !prompts.contains(where: { CFEqual($0.element, node.element) }) {
                 prompts.append((node.element, rect))
             }
@@ -202,15 +215,20 @@ final class DesktopApplicationDriver {
         throw DesktopControlError.unavailable("The active conversation scroll area is ambiguous or inaccessible.")
     }
 
-    private func chatGPTConversationPoint(application: NSRunningApplication, window: AXUIElement) throws -> CGPoint {
+    private func enableCodexAccessibility(_ application: NSRunningApplication) {
+        guard chatGPTAccessibilityPID != application.processIdentifier else { return }
         let app = AXUIElementCreateApplication(application.processIdentifier)
         AXUIElementSetMessagingTimeout(app, 0.2)
-        if chatGPTAccessibilityPID != application.processIdentifier {
-            // Same Electron-supported request as Claude; keyboard readiness
-            // remains independent of page/prompt matching.
-            _ = AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+        // Keyboard readiness remains independent of Electron's web AX tree.
+        if AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue) == .success {
             chatGPTAccessibilityPID = application.processIdentifier
         }
+    }
+
+    private func chatGPTConversationPoint(application: NSRunningApplication, window: AXUIElement) throws -> CGPoint {
+        enableCodexAccessibility(application)
+        let app = AXUIElementCreateApplication(application.processIdentifier)
+        AXUIElementSetMessagingTimeout(app, 0.2)
         guard let bounds = frame(of: window) else {
             throw DesktopControlError.unavailable("ChatGPT's focused window geometry is unavailable.")
         }
@@ -306,6 +324,192 @@ final class DesktopApplicationDriver {
         return "hit=" + roles.joined(separator: ">")
     }
 
+    private func requestCodexWebAccessibility(_ application: NSRunningApplication,
+        chromiumFallback: Bool = false) {
+        if let previous = codexAccessibilityRequest, previous.pid == application.processIdentifier {
+            if !chromiumFallback || previous.name == "AXEnhancedUserInterface" { return }
+        }
+        let app = AXUIElementCreateApplication(application.processIdentifier)
+        AXUIElementSetMessagingTimeout(app, 0.15)
+        func request(_ name: String) -> Bool {
+            let status = AXUIElementSetAttributeValue(app, name as CFString, kCFBooleanTrue)
+            lastCodexDictationDiagnostics += "\(name)=\(status.rawValue); "
+            return status == .success
+        }
+        let name = chromiumFallback
+            ? (request("AXEnhancedUserInterface") ? "AXEnhancedUserInterface" : nil)
+            : CodexAccessibilityActivation.enable(request: request)
+        if let name { codexAccessibilityRequest = (application.processIdentifier, name) }
+    }
+
+    func prepareCodexDictation(in application: NSRunningApplication) throws -> CodexDictationPreparation {
+        let window = try window(of: application)
+        lastCodexDictationDiagnostics = ""
+        requestCodexWebAccessibility(application)
+        let now = ContinuousClock.now
+        return CodexDictationPreparation(application: application, window: window,
+            began: now, nextAttempt: now)
+    }
+
+    /// Called by the existing controller clock. Chromium may debounce AX
+    /// activation for seconds; never block the input loop or start after L-up.
+    func pollCodexDictation(_ preparation: inout CodexDictationPreparation) throws -> CodexDictationControl? {
+        let now = ContinuousClock.now
+        guard now >= preparation.nextAttempt else { return nil }
+        preparation.nextAttempt = now.advanced(by: .milliseconds(200))
+        let application = try requireDestination(.codex)
+        guard application.processIdentifier == preparation.application.processIdentifier,
+              CFEqual(try window(of: application), preparation.window) else {
+            throw DesktopControlError.unavailable("Codex's window changed before recording; hold L again in the intended input.")
+        }
+        let elapsed = preparation.began.duration(to: now)
+        if let control = try findCodexDictation(in: preparation.window, application: application) {
+            // The same focused process/window is validated immediately before
+            // AXPress. There is no coordinate or keyboard fallback.
+            _ = try requireDestination(.codex)
+            guard CFEqual(try window(of: application), preparation.window) else {
+                throw DesktopControlError.unavailable("Codex's window changed before dictation started.")
+            }
+            try press(control.button)
+            return control
+        }
+        if elapsed >= .seconds(1) {
+            requestCodexWebAccessibility(application, chromiumFallback: true)
+        }
+        guard elapsed < .seconds(6) else {
+            throw DesktopControlError.unavailable("Codex dictation was not identifiable after AX preparation. "
+                + lastCodexDictationDiagnostics + " No button was pressed.")
+        }
+        return nil
+    }
+
+    private struct CodexButtonScan {
+        var candidates: [AXUIElement] = []
+        var webAreas = 0
+        var buttons = 0
+        var inputs = 0
+        var complete = true
+    }
+
+    private func codexButtonState(_ element: AXUIElement) -> CodexDictationButton? {
+        CodexDictationRecognition.state(names: [
+            attribute(element, kAXTitleAttribute) ?? "",
+            attribute(element, kAXDescriptionAttribute) ?? "",
+            attribute(element, kAXHelpAttribute) ?? "",
+        ])
+    }
+
+    private func scanCodexButtons(_ root: AXUIElement, window: CGRect,
+        deadline: ContinuousClock.Instant, starting: Bool) -> CodexButtonScan {
+        var result = CodexButtonScan()
+        var queue = [root]
+        var cursor = 0
+        // Breadth-first search reaches composer controls without walking a
+        // long transcript first. Fail closed on an incomplete ambiguity check.
+        while cursor < queue.count {
+            guard cursor < 3_000, ContinuousClock.now < deadline else {
+                result.complete = false
+                break
+            }
+            let element = queue[cursor]
+            cursor += 1
+            let role: String = attribute(element, kAXRoleAttribute) ?? ""
+            if role == "AXWebArea" { result.webAreas += 1 }
+            if role == kAXTextAreaRole || role == kAXTextFieldRole { result.inputs += 1 }
+            let hidden: Bool = attribute(element, "AXHidden") ?? false
+            if hidden { continue }
+            if [kAXButtonRole, kAXCheckBoxRole, "AXToggleButton"].contains(role) {
+                result.buttons += 1
+                let names: [String] = [attribute(element, kAXTitleAttribute) ?? "",
+                    attribute(element, kAXDescriptionAttribute) ?? "",
+                    attribute(element, kAXHelpAttribute) ?? ""]
+                let enabled: Bool = attribute(element, kAXEnabledAttribute) ?? true
+                var actions: CFArray?
+                let pressable = AXUIElementCopyActionNames(element, &actions) == .success
+                    && (actions as? [String])?.contains(kAXPressAction) == true
+                if let rect = frame(of: element) {
+                    let state = CodexDictationRecognition.state(names: names)
+                    let matches = starting
+                        ? CodexDictationRecognition.isStartCandidate(role: role, names: names,
+                            enabled: enabled, hidden: hidden, pressable: pressable, frame: rect, window: window)
+                        : (enabled && pressable && (state == .recording || state == .starting)
+                            && window.contains(CGPoint(x: rect.midX, y: rect.midY)))
+                    if matches, !result.candidates.contains(where: { CFEqual($0, element) }) {
+                        result.candidates.append(element)
+                    }
+                }
+            }
+            let children: [AXUIElement] = attribute(element, kAXChildrenAttribute) ?? []
+            queue.append(contentsOf: children)
+        }
+        return result
+    }
+
+    private func findCodexDictation(in window: AXUIElement,
+        application: NSRunningApplication) throws -> CodexDictationControl? {
+        guard let bounds = frame(of: window) else {
+            throw DesktopControlError.unavailable("Codex's focused window geometry is unavailable.")
+        }
+        let app = AXUIElementCreateApplication(application.processIdentifier)
+        var anchor: AXUIElement? = attribute(app, kAXFocusedUIElementAttribute)
+        let deadline = ContinuousClock.now.advanced(by: .milliseconds(250))
+        var inspectedWindow = false
+        for _ in 0..<10 {
+            guard let current = anchor else { break }
+            let role: String = attribute(current, kAXRoleAttribute) ?? ""
+            if role == kAXApplicationRole { break }
+            let result = scanCodexButtons(current, window: bounds, deadline: deadline, starting: true)
+            if CFEqual(current, window) { inspectedWindow = true }
+            lastCodexDictationDiagnostics = "webAreas=\(result.webAreas); buttons=\(result.buttons); "
+                + "matches=\(result.candidates.count); complete=\(result.complete); "
+                + "AX=\(codexAccessibilityRequest?.name ?? "unsupported"); "
+            // Retain the composer, not a tooltip/button wrapper that React
+            // removes when it mounts the recording toolbar.
+            if result.complete, result.candidates.count == 1, result.inputs > 0,
+               let button = result.candidates.first {
+                return CodexDictationControl(pid: application.processIdentifier,
+                    window: window, scope: current, button: button)
+            }
+            if !result.complete || result.candidates.count > 1 { return nil }
+            if inspectedWindow { break }
+            anchor = attribute(current, kAXParentAttribute)
+        }
+        if !inspectedWindow, ContinuousClock.now < deadline {
+            let result = scanCodexButtons(window, window: bounds, deadline: deadline, starting: true)
+            lastCodexDictationDiagnostics = "webAreas=\(result.webAreas); buttons=\(result.buttons); "
+                + "matches=\(result.candidates.count); complete=\(result.complete); "
+                + "AX=\(codexAccessibilityRequest?.name ?? "unsupported"); "
+            if result.complete, result.candidates.count == 1, let button = result.candidates.first {
+                return CodexDictationControl(pid: application.processIdentifier,
+                    window: window, scope: window, button: button)
+            }
+        }
+        return nil
+    }
+
+    func finishCodexDictation(_ control: CodexDictationControl, deadlineReached: Bool) throws -> Bool {
+        // React can replace the idle button with a recording-toolbar element.
+        // Resolve only inside the original composer/window, never another chat.
+        var button = control.button
+        var state = codexButtonState(button)
+        if state == nil, !CFEqual(control.scope, control.window), let bounds = frame(of: control.window) {
+            let result = scanCodexButtons(control.scope, window: bounds,
+                deadline: .now.advanced(by: .milliseconds(120)), starting: false)
+            if result.complete, result.candidates.count == 1, let replacement = result.candidates.first {
+                button = replacement
+                state = codexButtonState(button)
+            }
+        }
+        switch CodexDictationButton.release(for: state, deadlineReached: deadlineReached) {
+        case .wait: return false
+        case .press:
+            try press(button)
+            return true
+        case .abandon:
+            throw DesktopControlError.unavailable("Codex's recording control did not become available; check dictation in the original chat.")
+        }
+    }
+
     func dictationControl() throws -> DictationControl {
         let application = try requireDestination(.claudeCode)
         let window = try window(of: application)
@@ -313,12 +517,14 @@ final class DesktopApplicationDriver {
         var ancestor: AXUIElement? = prompt
         for _ in 0..<10 {
             guard let current = ancestor else { break }
-            let buttons = scan(current).filter { node in
-                guard ["按住以录音", "Hold to record", "Hold to dictate"].contains(node.label) else { return false }
-                var actions: CFArray?
-                return AXUIElementCopyActionNames(node.element, &actions) == .success
-                    && (actions as? [String])?.contains(kAXPressAction) == true
+            let nodes = scan(current, composerFirst: true)
+            let buttons = nodes.filter { node in
+                [kAXButtonRole, kAXCheckBoxRole, "AXToggleButton"].contains(node.role)
+                    && ["按住以录音", "Hold to record", "Hold to dictate"].contains(node.label)
+                    && (attribute(node.element, kAXEnabledAttribute) as Bool?) != false
             }
+            // Do not use the other pane's mic if the selected pane has none.
+            if nodes.filter({ isClaudePrompt($0) }).count > 1 { break }
             if buttons.count == 1, let rect = frame(of: buttons[0].element),
                rect.width > 10, rect.height > 10, let bounds = frame(of: window) {
                 let point = CGPoint(x: rect.midX, y: rect.midY)
@@ -433,16 +639,19 @@ final class DesktopApplicationDriver {
         return string ?? ""
     }
 
+    private func isClaudePrompt(_ node: Node) -> Bool {
+        (node.role == kAXTextAreaRole || node.role == kAXTextFieldRole)
+            && DesktopAccessibilityPolicy.isPrompt(node.label)
+    }
+
     private func activePrompt(in window: AXUIElement, application: NSRunningApplication) throws -> AXUIElement {
         let app = AXUIElementCreateApplication(application.processIdentifier)
         if let focused: AXUIElement = attribute(app, kAXFocusedUIElementAttribute) {
             var ancestor: AXUIElement? = focused
             for _ in 0..<10 {
                 guard let current = ancestor else { break }
-                let local = scan(current).filter {
-                    ($0.role == kAXTextAreaRole || $0.role == kAXTextFieldRole)
-                        && DesktopAccessibilityPolicy.isPrompt($0.label)
-                }
+                if CFEqual(current, window) { break }
+                let local = scan(current, composerFirst: true).filter(isClaudePrompt)
                 if local.count == 1 {
                     rememberedPrompt = (application.processIdentifier, window, local[0].element)
                     return local[0].element
@@ -450,10 +659,7 @@ final class DesktopApplicationDriver {
                 ancestor = attribute(current, kAXParentAttribute)
             }
         }
-        let prompts = scan(window).filter {
-            ($0.role == kAXTextAreaRole || $0.role == kAXTextFieldRole)
-                && DesktopAccessibilityPolicy.isPrompt($0.label)
-        }
+        let prompts = scan(window, composerFirst: true).filter(isClaudePrompt)
         // Electron sometimes reports the whole web area as focused. Reuse only
         // a prompt still present and visible in this exact process/window.
         if let remembered = rememberedPrompt,
@@ -500,7 +706,12 @@ final class DesktopApplicationDriver {
         return CGRect(origin: point, size: dimensions)
     }
 
-    private func scan(_ root: AXUIElement, stopAtWebArea: Bool = false) -> [Node] {
+    private func label(of element: AXUIElement) -> String {
+        let description: String = attribute(element, kAXDescriptionAttribute) ?? ""
+        return description.isEmpty ? (attribute(element, kAXTitleAttribute) ?? "") : description
+    }
+
+    private func scan(_ root: AXUIElement, stopAtWebArea: Bool = false, composerFirst: Bool = false) -> [Node] {
         var stack = [root]
         var result: [Node] = []
         let deadline = Date().addingTimeInterval(0.6)
@@ -516,7 +727,9 @@ final class DesktopApplicationDriver {
                 url: role == "AXWebArea" ? pageURL(element) : "", selected: value?.boolValue == true || !mark.isEmpty))
             if stopAtWebArea, role == "AXWebArea" { break }
             let children: [AXUIElement] = attribute(element, kAXChildrenAttribute) ?? []
-            stack.append(contentsOf: children.reversed())
+            // The composer typically follows a large transcript in the AX tree.
+            if composerFirst { stack.append(contentsOf: children) }
+            else { stack.append(contentsOf: children.reversed()) }
         }
         return result
     }

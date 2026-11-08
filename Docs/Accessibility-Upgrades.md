@@ -1,6 +1,6 @@
 # Accessibility upgrades and recovery
 
-Applies to **Joy-Con Unified Controller 0.3.0**. The bundle identifier is
+Applies to **JoyRelay** (formerly Joy-Con Unified Controller). The bundle identifier is
 `com.ads1029.JoyConUnifiedController`. Do not reset the original controller's
 permissions or grant a backup/dist copy by mistake.
 
@@ -10,10 +10,13 @@ Use one installed path for both runtime and permission requests. The local
 accepted installation uses:
 
 ```text
-/Applications/JoyConUnifiedController.app
+/Applications/JoyRelay.app
 ```
 
-The installer defaults to `~/Applications/JoyConUnifiedController.app` when its
+The installer can migrate a same-directory `JoyConUnifiedController.app` with
+the same bundle identifier to `JoyRelay.app`, backing it up first. It refuses
+to replace any unrelated application or choose between two existing copies.
+The installer defaults to `~/Applications/JoyRelay.app` when its
 second argument is omitted. That is a supported alternative, but upgrades must
 keep using the same destination. Do not run both copies.
 
@@ -30,10 +33,10 @@ future distribution task; these builds are not notarized.
 Build first, then explicitly install to your chosen canonical path:
 
 ```sh
-bash Scripts/build-release.sh 0.3.0
+bash Scripts/build-release.sh 0.3.7
 bash Scripts/install-local-release.sh \
-  "dist/JoyConUnifiedController.app" \
-  "/Applications/JoyConUnifiedController.app"
+  "dist/JoyRelay.app" \
+  "/Applications/JoyRelay.app"
 ```
 
 The installer:
@@ -55,7 +58,7 @@ supply the user's macOS permission decision.
 ## Grant and verify
 
 1. In **System Settings → Privacy & Security → Accessibility**, enable the
-   JoyConUnifiedController entry for the installed app. If a stale enabled row
+   JoyRelay entry for the installed app. If a stale enabled row
    persists after upgrade, turn it off and on again.
 2. Return to the controller and choose **Request / Refresh**.
 3. Confirm **Accessibility permission granted**.
@@ -79,10 +82,10 @@ The installer receipt records `installed_app`, version, binary SHA-256,
 canonical path and hash with the installed bundle:
 
 ```sh
-codesign --verify --deep --strict "/Applications/JoyConUnifiedController.app"
-codesign -d --verbose=4 "/Applications/JoyConUnifiedController.app" 2>&1
+codesign --verify --deep --strict "/Applications/JoyRelay.app"
+codesign -d --verbose=4 "/Applications/JoyRelay.app" 2>&1
 shasum -a 256 \
-  "/Applications/JoyConUnifiedController.app/Contents/MacOS/JoyConUnifiedController"
+  "/Applications/JoyRelay.app/Contents/MacOS/JoyConUnifiedController"
 ```
 
 Use your actual installed path if different. Receipts can contain local paths

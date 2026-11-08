@@ -7,6 +7,7 @@ enum JoyConSide: String, Sendable {
     case left = "Left Joy-Con"
     case right = "Right Joy-Con"
     case pair = "Joy-Con Pair"
+    case switchPro = "Switch Pro Controller"
     case unknown = "Joy-Con"
 }
 
@@ -25,6 +26,7 @@ final class GameControllerAdapter {
     var onControllersChanged: (([ControllerDescriptor]) -> Void)?
     var onEvent: ((ControllerEvent) -> Void)?
     var onInputSourceStatus: ((String) -> Void)?
+    var onRawControlsDiagnostic: ((String) -> Void)?
 
     private(set) var descriptors: [ControllerDescriptor] = []
     private var activeController: GCController?
@@ -55,6 +57,9 @@ final class GameControllerAdapter {
             Task { @MainActor [weak self] in
                 self?.publishInputSourceStatus(status)
             }
+        }
+        leftJoyConHIDAdapter.onRawControlsDiagnostic = { [weak self] diagnostic in
+            Task { @MainActor [weak self] in self?.onRawControlsDiagnostic?(diagnostic) }
         }
         leftJoyConHIDAdapter.onBatteryStatus = { [weak self] status in
             Task { @MainActor [weak self] in
@@ -109,7 +114,7 @@ final class GameControllerAdapter {
     }
 
     private func refreshBatteryDescriptors() {
-        let updatedDescriptors = GCController.controllers().map(descriptor)
+        let updatedDescriptors = discoveredControllers().map(descriptor)
         guard updatedDescriptors != descriptors else { return }
         descriptors = updatedDescriptors
         onControllersChanged?(updatedDescriptors)
@@ -193,12 +198,18 @@ final class GameControllerAdapter {
         }
     }
 
-    private func refresh() {
+    private func discoveredControllers() -> [GCController] {
         let controllers = GCController.controllers()
+        // Keep the existing Joy-Con first in both UI/cleanup and input routing.
+        return controllers.filter { isJoyCon($0) } + controllers.filter { !isJoyCon($0) }
+    }
+
+    private func refresh() {
+        let controllers = discoveredControllers()
         descriptors = controllers.map(descriptor)
         onControllersChanged?(descriptors)
 
-        let supported = controllers.first { isJoyCon($0) }
+        let supported = controllers.first { isSupportedController($0) }
         let supportedID = supported.map(controllerID)
         configureHIDAdapters(for: supported)
         if supportedID != activeControllerID {
@@ -273,7 +284,7 @@ final class GameControllerAdapter {
     }
 
     private func descriptor(for controller: GCController) -> ControllerDescriptor {
-        let supported = isJoyCon(controller)
+        let supported = isSupportedController(controller)
         return ControllerDescriptor(
             id: controllerID(controller),
             name: controller.vendorName ?? controller.productCategory,
@@ -315,6 +326,14 @@ final class GameControllerAdapter {
         String(ObjectIdentifier(controller).hashValue)
     }
 
+    private func isSupportedController(_ controller: GCController) -> Bool {
+        isJoyCon(controller) || isSwitchPro(controller)
+    }
+
+    private func isSwitchPro(_ controller: GCController) -> Bool {
+        controller.productCategory == "Switch Pro Controller" && controller.extendedGamepad != nil
+    }
+
     private func isJoyCon(_ controller: GCController) -> Bool {
         let identity = [
             controller.vendorName ?? "",
@@ -326,6 +345,7 @@ final class GameControllerAdapter {
     }
 
     private func side(for controller: GCController) -> JoyConSide {
+        if isSwitchPro(controller) { return .switchPro }
         let identity = [
             controller.vendorName ?? "",
             controller.productCategory,
@@ -364,10 +384,15 @@ final class GameControllerAdapter {
             bind(gamepad.buttonMenu, to: .buttonPlus, controllerID: controllerID)
             bind(gamepad.buttonOptions, to: .buttonMinus, controllerID: controllerID)
             bind(gamepad.buttonHome, to: .buttonHome, controllerID: controllerID)
+            let proRightHand: ControllerEventLayout? = isSwitchPro(controller) ? .switchProRightHand : nil
+            if proRightHand != nil {
+                bind(controller.physicalInputProfile.buttons[GCInputButtonShare],
+                     to: .buttonCapture, controllerID: controllerID)
+            }
             bind(gamepad.leftShoulder, to: .leftShoulder, controllerID: controllerID)
-            bind(gamepad.rightShoulder, to: .rightShoulder, controllerID: controllerID)
+            bind(gamepad.rightShoulder, to: .rightShoulder, controllerID: controllerID, layout: proRightHand)
             bind(gamepad.leftTrigger, to: .leftTrigger, controllerID: controllerID)
-            bind(gamepad.rightTrigger, to: .rightTrigger, controllerID: controllerID)
+            bind(gamepad.rightTrigger, to: .rightTrigger, controllerID: controllerID, layout: proRightHand)
             bind(
                 gamepad.leftThumbstickButton,
                 to: .leftStickPress,
@@ -376,7 +401,8 @@ final class GameControllerAdapter {
             bind(
                 gamepad.rightThumbstickButton,
                 to: .rightStickPress,
-                controllerID: controllerID
+                controllerID: controllerID,
+                layout: proRightHand
             )
             bind(gamepad.dpad.up, to: .dpadUp, controllerID: controllerID)
             bind(gamepad.dpad.down, to: .dpadDown, controllerID: controllerID)
@@ -392,7 +418,8 @@ final class GameControllerAdapter {
                 gamepad.rightThumbstick,
                 key: "\(controllerID).right-stick",
                 inputs: stickInputs(left: false),
-                controllerID: controllerID
+                controllerID: controllerID,
+                layout: proRightHand
             )
         } else if let gamepad = controller.microGamepad {
             gamepad.allowsRotation = false
@@ -499,7 +526,8 @@ final class GameControllerAdapter {
         _ directionPad: GCControllerDirectionPad,
         key: String,
         inputs: [PortraitDirection: ControllerInput],
-        controllerID: String
+        controllerID: String,
+        layout: ControllerEventLayout? = nil
     ) {
         directionPad.valueChangedHandler = { [weak self] _, xValue, yValue in
             Task { @MainActor [weak self] in
@@ -508,7 +536,8 @@ final class GameControllerAdapter {
                     x: xValue,
                     y: yValue,
                     key: key,
-                    inputs: inputs
+                    inputs: inputs,
+                    layout: layout
                 )
             }
         }
@@ -518,21 +547,23 @@ final class GameControllerAdapter {
         x: Float,
         y: Float,
         key: String,
-        inputs: [PortraitDirection: ControllerInput]
+        inputs: [PortraitDirection: ControllerInput],
+        layout: ControllerEventLayout? = nil
     ) {
         var filter = stickFilters[key] ?? StickDirectionFilter()
         let edges = filter.update(x: x, y: y)
         stickFilters[key] = filter
         for edge in edges {
             guard let input = inputs[edge.direction] else { continue }
-            onEvent?(ControllerEvent(input: input, phase: edge.phase))
+            onEvent?(ControllerEvent(input: input, phase: edge.phase, layout: layout))
         }
     }
 
     private func bind(
         _ button: GCControllerButtonInput?,
         to input: ControllerInput,
-        controllerID: String
+        controllerID: String,
+        layout: ControllerEventLayout? = nil
     ) {
         button?.pressedChangedHandler = { [weak self] _, _, isPressed in
             Task { @MainActor [weak self] in
@@ -540,7 +571,8 @@ final class GameControllerAdapter {
                 self?.onEvent?(
                     ControllerEvent(
                         input: input,
-                        phase: isPressed ? .pressed : .released
+                        phase: isPressed ? .pressed : .released,
+                        layout: layout
                     )
                 )
             }

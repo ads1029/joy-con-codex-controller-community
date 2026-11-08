@@ -1,6 +1,6 @@
 # Maintenance and release policy
 
-Updated 2026-10-28. The original **0.1.12** remains the historical maintenance
+Updated 2026-11-08. The original **0.1.12** remains the historical maintenance
 baseline. **0.3.0** is the first community release of the unified Codex /
 Claude Desktop Code controller, published by the tag workflow as an ad-hoc-signed,
 non-notarized Apple-silicon build.
@@ -17,6 +17,10 @@ See [the acceptance contract](Unified-Controller.md) for current features and
 [the fork policy](Community-Fork-Maintenance.md) for attribution/release limits.
 
 ## Change procedure
+
+For recurring input/output failures, consult the [debugging log](Debugging-Log.md)
+first. The 2026-11-04 L/ZL incident records the raw-report root cause, failed
+diagnostic assumptions, layer-by-layer checks and physical acceptance evidence.
 
 1. Describe the observable defect or behavior, app/macOS versions and input path.
 2. Keep the change narrow. Add or extend a focused regression for a reproducible
@@ -35,9 +39,9 @@ they do not require rebuilding, reinstalling or resetting permissions.
 swift test
 # When the CLI is installed:
 openspec validate --all --strict
-bash Scripts/build-release.sh 0.3.0
-codesign --verify --deep --strict dist/JoyConUnifiedController.app
-(cd dist && shasum -a 256 -c JoyConUnifiedController-0.3.0-macOS-arm64.zip.sha256)
+bash Scripts/build-release.sh 0.3.7
+codesign --verify --deep --strict dist/JoyRelay.app
+(cd dist && shasum -a 256 -c JoyRelay-0.3.7-macOS-arm64.zip.sha256)
 git diff --check
 ```
 
@@ -58,7 +62,8 @@ The 0.3.0 long-press change passed 128 tests in 19 suites (48 focused unified te
 | Suppression | Test Mode emits no mappings or automatic window moves |
 | Switching | Three quick ZL taps change target; single/double/long Fn use does not; ZL+Capture stays disabled; transition cleanup and readiness remain required |
 | Ordinary actions | Capture single/double, repeat boundaries, dictation start/stop, scrolling and bottom |
-| Claude panes | ZL+fresh left/right selects the correct input; recording/scrolling follow it |
+| Claude panes | ZL+left-stick left/right, or Pro right-stick left/right, selects the input; recording/scrolling follow it |
+| Switch Pro | R/ZR switch conversations; right stick up/down scrolls and R3 jumps to bottom; L dictation and Capture retain shared actions |
 | Codex compatibility | Sidebar chat navigation and panel shortcuts match the installed app |
 | Connection | Reconnect and launch-with-connected restore the selected desktop/windows and show one HUD |
 | Failures | Closed window, deleted desktop, changed display, missing app or denied permission produce visible errors |

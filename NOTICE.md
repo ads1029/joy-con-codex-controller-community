@@ -6,7 +6,7 @@
 - Upstream attribution: Jinjiang and the contributors recorded in Git history
 - Fork baseline: upstream 0.1.12
 - Community repository: [ads1029/joy-con-codex-controller-community](https://github.com/ads1029/joy-con-codex-controller-community)
-- Current application name: Joy-Con Unified Controller
+- Current application name: JoyRelay (formerly Joy-Con Unified Controller)
 
 Basic single-Joy-Con input, layered mapping and the original controller workflow
 are inherited. Fork enhancements are described in [CHANGELOG.md](CHANGELOG.md)

@@ -1,16 +1,22 @@
-# Joy-Con Unified Controller
+# JoyRelay
 
-**Control Codex and Claude Code with one Joy-Con on macOS.**
+**Control Codex and Claude Code with a gamepad on macOS.**
+
+JoyRelay was previously named Joy-Con Unified Controller. The app now installs
+as `JoyRelay.app`; the bundle identifier and existing configuration paths are
+unchanged.
 
 Keep a coding conversation moving with a physical controller: switch agents,
 hold a button to dictate, scroll a response, and choose which Claude input to
 use. The app runs in the menu bar and routes input to the selected desktop app.
 
 <p align="center">
-  <img src="Assets/AppIcon/AppIcon.png" alt="Joy-Con Unified Controller icon" width="128">
+  <img src="Assets/AppIcon/AppIcon.png" alt="JoyRelay icon" width="128">
 </p>
 
-**Release 0.3.0 · macOS 14+ · Swift 6 · 128 automated tests**
+**Development candidate 0.3.7 · macOS 14+ · Swift 6**
+
+The published release remains 0.3.0; this branch is not a new binary release.
 
 Built on [Jinjiang/joy-con-codex-micro](https://github.com/Jinjiang/joy-con-codex-micro),
 with upstream history and attribution retained. This is an independent community
@@ -23,7 +29,8 @@ with upstream attribution and the authorization record in [NOTICE.md](NOTICE.md)
 - **Switch agents with three ZL taps.** Complete three short taps within one
   second to move between Codex and Claude Code. Holding ZL still activates Fn
   immediately. Using another control cancels the tap sequence.
-- **Hold L to speak; release to stop.** Codex receives its dictation shortcut.
+- **Hold L to speak; release to stop.** Codex uses its configured native hold
+  shortcut when supported; Claude uses the active composer's recording control.
   Claude uses the selected input's native **Hold to record** control.
 - **Choose either Claude input.** Hold ZL and move the stick left or right to
   select that side of a two-pane Code layout. Release both before recording.
@@ -63,7 +70,7 @@ work rather than presenting inherited single-Joy-Con support as a new feature.
 | --- | --- |
 | Codex | Native desktop app, bundle ID `com.openai.codex` |
 | Claude Code | **Code page inside Claude Desktop**, bundle ID `com.anthropic.claudefordesktop` |
-| Controller | A paired Nintendo Switch Joy-Con; the **single left Joy-Con in portrait orientation, Minus at the top**, is the primary physically tested setup |
+| Controller | Nintendo Switch Joy-Con and first-generation Switch Pro Controller. Left Joy-Con in portrait is the primary physically tested setup. Pro routing passed event replay; live app output still needs separate acceptance. |
 | macOS | 14+ for the controller; 14.5+ for experimental desktop restoration |
 | Toolchain | Swift 6; repository toolchain hint: 6.3 |
 | Build validation | Apple silicon; other architectures and right-controller combinations need separate validation |
@@ -80,10 +87,10 @@ signing, notarization and hardware acceptance remain separate release checks.
 
 ```sh
 swift test
-bash Scripts/build-release.sh 0.3.0
+bash Scripts/build-release.sh 0.3.7
 ```
 
-The build script creates `dist/JoyConUnifiedController.app`, an architecture-named
+The build script creates `dist/JoyRelay.app`, an architecture-named
 ZIP and its SHA-256 file. It ad-hoc signs the app; it does not install it or grant
 permissions. `Package.swift` is the source of truth and can also be opened in Xcode.
 
@@ -92,8 +99,8 @@ path consistently:
 
 ```sh
 bash Scripts/install-local-release.sh \
-  "dist/JoyConUnifiedController.app" \
-  "/Applications/JoyConUnifiedController.app"
+  "dist/JoyRelay.app" \
+  "/Applications/JoyRelay.app"
 ```
 
 The installer verifies the unified identity, backs up the previous candidate,
@@ -115,6 +122,37 @@ Do not run another live controller utility at the same time.
 
 ## Controls
 
+### First-generation Switch Pro Controller (candidate)
+
+The Switch Pro Controller reuses the selected app's existing mapping profile;
+no Pro-specific profile is created or copied on startup. Use the physical
+D-pad and left stick as before: hold L for dictation, tap and release ZL
+three times to change apps, and use ZL + left-stick left/right in Claude Code
+to select an input. The Pro Capture/Share button is routed to the existing
+Capture single/double-tap recognizer; no new action is assigned to it.
+The Pro right-hand layout overrides the following inputs at runtime only,
+in both normal and ZL/Fn states. The mapping editor still shows the shared
+profile; the override never writes to it.
+
+| Pro control | Codex | Claude Code |
+| --- | --- | --- |
+| R / ZR | Previous / next chat (`⌘⌥[` / `⌘⌥]`) | Previous / next session (`⌘⇧[` / `⌘⇧]`) |
+| Right stick up / down | Scroll the conversation; hold to repeat | Scroll the selected conversation; hold to repeat |
+| Right stick press (R3) | Jump to the conversation bottom | Jump to the selected conversation bottom |
+| Right stick left / right | Shared profile (normally caret arrows) | Select the left / right visible input directly; no ZL needed |
+
+The other Pro controls still use the loaded profile. Joy-Con remains the first
+choice when both are connected; disconnect the Joy-Con to try the Pro.
+Check the diagnostics in Test Mode before enabling output.
+
+
+The left Joy-Con supplement accepts both simple HID (0x3F) and full streaming
+reports (0x30–0x33) for L, ZL and L3. macOS does not always expose those full-report
+buttons as individual HID values. Both paths share one edge state to avoid
+duplicates, and a disconnect releases held controls. **L/ZL 输入诊断** retains
+the current report mode and press counts, independently of stick feedback.
+
+
 **The table below is the tested maintainer profile, imported from the previous
 controller.** A fresh installation without that profile uses the core starter
 mappings, which differ. Inspect or configure the mapping editor before live use.
@@ -135,6 +173,21 @@ the unified session independently of profile edits.
 | Capture single/double | Increase/decrease reasoning effort | Disabled | Disabled |
 | ZL | Hold for immediate Fn; **three complete short taps switch apps** | — | — |
 | SL / SR | Disabled | Disabled | Disabled |
+
+**Dictation.** The existing `Hold ⌃⇧D` mapping represents the voice gesture;
+use **L**, not **ZL**. For Codex the controller reads the existing
+`globalDictationHotkey` from `$CODEX_HOME/.codex-global-state.json` (default
+`~/.codex`), without changing any setting. Supported keyboard chords use the
+native hold path, with actual modifier-down/up transitions and balanced release.
+Verify the configured shortcut works on the physical keyboard first.
+For the maintainer's setup it is `Ctrl+Shift+D`.
+
+If no supported native hold chord is configured, the AX microphone route remains
+available but may not work when Codex exposes only its native window shell.
+Claude Code still uses its own native hold-to-record control. Select the intended
+input first; a controller release never sends the draft. The persistent
+**最近一次语音诊断** field reports the route and emitted events and is not overwritten
+by stick movement. Emitted events are not proof that audio was recorded.
 
 **Long press.** Any mapping can add a long-press tap shortcut (default 2 s,
 500–5000 ms) in the editor. That control's short action then fires on
@@ -158,7 +211,7 @@ unambiguous side-by-side inputs and reports failure rather than guessing.
 
 | Check | Evidence |
 | --- | --- |
-| Automated | **128 tests in 19 suites**, including **48 unified transition/profile tests**, passed for 0.3.0 |
+| Automated | **145 tests in 19 suites** passed for the 0.3.7 candidate |
 | Long press | User confirmed Claude Code D-pad right: short press sends Return, a 2 s hold sends `⌘Return`, on 0.3.0 code |
 | Package | Release build, strict ad-hoc signature, archive CRC, executable mode and binary/checksum checks passed |
 | Triple-ZL switch | User physically confirmed Codex → Claude Code → Codex on 0.2.12 |

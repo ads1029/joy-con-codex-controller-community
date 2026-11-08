@@ -6,7 +6,7 @@ This repository is an independent community-maintained fork of
 [Jinjiang/joy-con-codex-micro](https://github.com/Jinjiang/joy-con-codex-micro),
 based on its 0.1.12 baseline. Repository:
 [`ads1029/joy-con-codex-controller-community`](https://github.com/ads1029/joy-con-codex-controller-community).
-The app is now **Joy-Con Unified Controller**; the repository keeps its existing
+The app is now **JoyRelay** (formerly Joy-Con Unified Controller); the repository keeps its existing
 name and upstream history.
 
 Basic single-Joy-Con support, portrait/layered mapping and the original controller
@@ -19,8 +19,8 @@ reviewed as prior art; no second Berrry process or copied speech engine is used.
 
 | Item | Unified candidate |
 | --- | --- |
-| Version | 0.3.0, first community release (ad-hoc signed, not notarized) |
-| App/display name | `JoyConUnifiedController.app` / Joy-Con Unified Controller |
+| Version | 0.3.7 development candidate; 0.3.0 is the first community release (ad-hoc signed, not notarized) |
+| App/display name | `JoyRelay.app` / JoyRelay |
 | Executable product | `JoyConUnifiedController` |
 | Bundle/defaults identity | `com.ads1029.JoyConUnifiedController` |
 | Profile/support directory | `~/Library/Application Support/JoyConUnifiedController/` |

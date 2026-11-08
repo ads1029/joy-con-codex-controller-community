@@ -71,15 +71,23 @@ public enum InputPhase: String, Codable, Sendable {
     case released
 }
 
+/// Optional runtime routing metadata; old event recordings decode without it.
+public enum ControllerEventLayout: String, Codable, Sendable {
+    case switchProRightHand
+}
+
 public struct ControllerEvent: Codable, Equatable, Sendable {
     public let input: ControllerInput
     public let phase: InputPhase
     public let timestamp: Date
+    public let layout: ControllerEventLayout?
 
-    public init(input: ControllerInput, phase: InputPhase, timestamp: Date = .now) {
+    public init(input: ControllerInput, phase: InputPhase, timestamp: Date = .now,
+                layout: ControllerEventLayout? = nil) {
         self.input = input
         self.phase = phase
         self.timestamp = timestamp
+        self.layout = layout
     }
 }
 

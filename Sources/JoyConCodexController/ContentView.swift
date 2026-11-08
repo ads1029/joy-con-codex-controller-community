@@ -40,7 +40,7 @@ struct ContentView: View {
     private var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Joy-Con Unified Controller")
+                Text("JoyRelay")
                     .font(.largeTitle.bold())
                 Text("A tactile shortcut companion for macOS")
                     .foregroundStyle(.secondary)
@@ -265,26 +265,34 @@ struct ContentView: View {
 
     private var diagnosticsCard: some View {
         GroupBox {
-            HStack(alignment: .top, spacing: 24) {
-                diagnostic(
-                    title: "Recent input",
-                    value: recentInputText,
-                    symbol: "button.programmable"
-                )
-                Divider()
-                diagnostic(
-                    title: "Resolved action",
-                    value: recentActionText,
-                    symbol: "keyboard"
-                )
-                Divider()
-                diagnostic(
-                    title: "Feedback",
-                    value: model.feedbackMessage,
-                    symbol: "waveform"
-                )
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top, spacing: 24) {
+                    diagnostic(
+                        title: "Recent input",
+                        value: recentInputText,
+                        symbol: "button.programmable"
+                    )
+                    Divider()
+                    diagnostic(
+                        title: "Resolved action",
+                        value: recentActionText,
+                        symbol: "keyboard"
+                    )
+                    Divider()
+                    diagnostic(
+                        title: "Feedback",
+                        value: model.feedbackMessage,
+                        symbol: "waveform"
+                    )
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Text("L/ZL 输入诊断：\(model.rawControlsDiagnostic)")
+                    .font(.caption)
+                    .textSelection(.enabled)
+                Text("最近一次语音诊断：\(model.lastVoiceDiagnostic)")
+                    .font(.caption)
+                    .textSelection(.enabled)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(6)
         } label: {
             Label("Test and diagnostics", systemImage: "stethoscope")
@@ -310,6 +318,13 @@ struct ContentView: View {
                     Button("Restore Defaults") {
                         confirmingReset = true
                     }
+                }
+
+                if model.supportedControllers.first?.side == .switchPro {
+                    Text("Switch Pro 右手：R / ZR 上一条 / 下一条会话，右摇杆上下滚动、按下到底；Claude 双栏中左右切输入框。下方仍显示共用的基础映射。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
                 Divider()

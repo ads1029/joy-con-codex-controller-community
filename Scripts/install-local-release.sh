@@ -12,7 +12,7 @@ if [[ $# -lt 1 || $# -gt 2 ]]; then
 fi
 
 source_app="$1"
-installed_app="${2:-$HOME/Applications/$application_name.app}"
+installed_app="${2:-$HOME/Applications/JoyRelay.app}"
 
 if [[ ! -d "$source_app/Contents" || ! -x "$source_app/Contents/MacOS/$application_name" ]]; then
     echo "Release bundle is incomplete: $source_app" >&2
@@ -30,17 +30,31 @@ if [[ "$source_app" == "$installed_app" ]]; then
     exit 64
 fi
 
-# Even an explicit destination must never replace the user's original controller.
-if [[ -e "$installed_app" ]]; then
-    destination_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$installed_app/Contents/Info.plist" 2>/dev/null || true)"
-    if [[ "$destination_id" != "$expected_bundle_id" ]]; then
-        echo "Refusing to replace another application: $installed_app" >&2
+# Migrate the old basename only for the same bundle identity. Never touch the original controller.
+previous_app="$installed_app"
+legacy_app="$installed_parent/$application_name.app"
+if [[ "$(basename "$installed_app")" == "JoyRelay.app" && -e "$legacy_app" ]]; then
+    if [[ -e "$installed_app" ]]; then
+        echo "Refusing an ambiguous upgrade: both $installed_app and $legacy_app exist." >&2
         exit 65
     fi
+    previous_app="$legacy_app"
+fi
+if [[ -e "$previous_app" ]]; then
+    destination_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$previous_app/Contents/Info.plist" 2>/dev/null || true)"
+    if [[ "$destination_id" != "$expected_bundle_id" ]]; then
+        echo "Refusing to replace another application: $previous_app" >&2
+        exit 65
+    fi
+fi
+if [[ "$source_app" == "$previous_app" ]]; then
+    echo "Release source and previous installed application must be different paths." >&2
+    exit 64
 fi
 
 bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$source_app/Contents/Info.plist")"
 version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$source_app/Contents/Info.plist")"
+display_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$source_app/Contents/Info.plist" 2>/dev/null || printf '%s' "$application_name")"
 if [[ "$bundle_id" != "$expected_bundle_id" ]]; then
     echo "Unexpected bundle identifier: $bundle_id" >&2
     exit 65
@@ -69,9 +83,9 @@ restore_on_error() {
         if [[ -e "$installed_app" ]]; then
             mv "$installed_app" "$backup_root/failed-new-bundle"
         fi
-        ditto "$previous_bundle" "$installed_app"
-        "$launch_services" -f "$installed_app" >/dev/null 2>&1 || true
-        open -n "$installed_app" >/dev/null 2>&1 || true
+        ditto "$previous_bundle" "$previous_app"
+        "$launch_services" -f "$previous_app" >/dev/null 2>&1 || true
+        open -n "$previous_app" >/dev/null 2>&1 || true
         echo "Installation failed; the previous installed bundle was restored." >&2
     fi
     exit "$exit_status"
@@ -89,9 +103,9 @@ fi
 
 # Unregister and preserve the old installed bundle under a non-.app name so it
 # cannot be selected as the permission target by LaunchServices or Spotlight.
-if [[ -d "$installed_app/Contents" ]]; then
-    "$launch_services" -u "$installed_app" >/dev/null 2>&1 || true
-    mv "$installed_app" "$previous_bundle"
+if [[ -d "$previous_app/Contents" ]]; then
+    "$launch_services" -u "$previous_app" >/dev/null 2>&1 || true
+    mv "$previous_app" "$previous_bundle"
 fi
 
 # Install and verify the exact bundle that will own the new TCC request.
@@ -121,6 +135,7 @@ version=$version
 bundle_id=$bundle_id
 source_app=$source_app
 installed_app=$installed_app
+previous_app=$previous_app
 binary_sha256=$installed_sha256
 cdhash=$installed_cdhash
 designated_requirement=$installed_requirement
@@ -164,4 +179,4 @@ echo "Installed $application_name $version"
 echo "Installed path: $installed_app"
 echo "Permission target CDHash: $installed_cdhash"
 echo "Receipt: $receipt"
-echo "Enable the single $application_name entry now shown in Accessibility, then use Refresh Permission in the app."
+echo "Enable the single $display_name entry now shown in Accessibility, then use Refresh Permission in the app."

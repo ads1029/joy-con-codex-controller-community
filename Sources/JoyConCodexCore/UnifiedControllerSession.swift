@@ -50,11 +50,26 @@ public struct UnifiedControllerSession: Sendable {
     public init(target: DesktopTarget = .codex) { self.target = target }
 
     public func promptSelection(for event: ControllerEvent) -> DesktopPromptSide? {
-        guard target == .claudeCode, !awaitingNeutral, event.phase == .pressed,
-              heldInputs.contains(.leftTrigger) else { return nil }
+        guard target == .claudeCode, !awaitingNeutral, event.phase == .pressed else { return nil }
         switch event.input {
-        case .leftStickLeft: return .left
-        case .leftStickRight: return .right
+        case .leftStickLeft where heldInputs.contains(.leftTrigger): return .left
+        case .leftStickRight where heldInputs.contains(.leftTrigger): return .right
+        case .rightStickLeft where event.layout == .switchProRightHand: return .left
+        case .rightStickRight where event.layout == .switchProRightHand: return .right
+        default: return nil
+        }
+    }
+
+    private func proRightHandAction(for event: ControllerEvent) -> MappingAction? {
+        guard event.layout == .switchProRightHand else { return nil }
+        switch event.input {
+        case .rightShoulder, .rightTrigger:
+            let previous = event.input == .rightShoulder
+            let modifiers: Set<KeyModifier> = target == .codex ? [.command, .option] : [.command, .shift]
+            return .tap(Shortcut(keyCode: previous ? 33 : 30, displayLabel: previous ? "[" : "]", modifiers: modifiers))
+        case .rightStickUp: return .scrollUp
+        case .rightStickDown: return .scrollDown
+        case .rightStickPress: return .scrollToBottom
         default: return nil
         }
     }
@@ -102,6 +117,12 @@ public struct UnifiedControllerSession: Sendable {
         }
         guard isReady else { return .suppressed }
         if event.phase == .pressed && !freshPress { return .suppressed }
+
+        // Apply only to the current event; never change the saved mapping or Fn state.
+        var profile = profile
+        if let action = proRightHandAction(for: event) {
+            profile.update(InputMapping(input: event.input, primaryAction: action, functionAction: action))
+        }
 
         // Under Fn, deferred-tap inputs keep their ordinary Fn action and release.
         if event.phase == .pressed, engine.isFunctionLayerActive,

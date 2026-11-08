@@ -180,3 +180,15 @@ target only. This specializes the core profile-configuration reset contract.
 - **WHEN** reset is confirmed
 - **THEN** only the Claude unified profile changes and the original Codex bytes
   and the saved unified Codex profile remain unchanged
+
+### Requirement: Route Switch Pro right-hand controls without modifying saved profiles
+The system SHALL apply a runtime-only overlay to first-generation Switch Pro
+right-hand inputs. R and ZR SHALL navigate previous/next conversations using
+the selected target's chords; right stick up/down SHALL scroll, and R3 SHALL
+jump to the conversation bottom. Left-hand controls, Capture, Codex horizontal
+right-stick mappings and Joy-Con mappings SHALL remain unchanged.
+
+#### Scenario: Navigate the Claude Desktop Code split pane
+- **WHEN** a fresh Switch Pro right-stick left/right press targets Claude Desktop Code
+- **THEN** the corresponding visible prompt is selected without ZL, subject to existing readiness and neutral-control safeguards
+- **AND** Test Mode does not focus a prompt or emit input

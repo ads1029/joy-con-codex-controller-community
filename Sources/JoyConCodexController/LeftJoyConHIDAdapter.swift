@@ -24,11 +24,16 @@ final class LeftJoyConHIDAdapter {
     var onEvent: ((ControllerEvent) -> Void)?
     var onStatus: ((String) -> Void)?
     var onBatteryStatus: ((ControllerBatteryStatus?) -> Void)?
+    var onRawControlsDiagnostic: ((String) -> Void)?
 
     private var manager: IOHIDManager?
     private var activeDevice: IOHIDDevice?
     private var scheduledRunLoop: CFRunLoop?
     private var pressedUsages = Set<UInt32>()
+    private var supplement = LeftJoyConSupplementState()
+    private var lastButtonReportID: UInt32?
+    private var lPresses = 0
+    private var zlPresses = 0
     private var packetNumber: UInt8 = 0
     private var lastBatteryQueryAt: Date?
 
@@ -107,12 +112,13 @@ final class LeftJoyConHIDAdapter {
         self.manager = nil
         activeDevice = nil
         scheduledRunLoop = nil
-        pressedUsages.removeAll()
+        resetSupplement()
         lastBatteryQueryAt = nil
         onBatteryStatus?(nil)
     }
 
     func handleMatchedDevice(_ device: IOHIDDevice) {
+        if let activeDevice, !CFEqual(activeDevice, device) { resetSupplement() }
         activeDevice = device
         onStatus?("Left Joy-Con portrait input is active; raw L/ZL/L3 supplement attached.")
         requestBatteryStatus(force: true)
@@ -124,7 +130,7 @@ final class LeftJoyConHIDAdapter {
             lastBatteryQueryAt = nil
             onBatteryStatus?(nil)
         }
-        pressedUsages.removeAll()
+        resetSupplement()
         onStatus?("Left Joy-Con raw L/ZL/L3 supplement disconnected.")
     }
 
@@ -175,11 +181,15 @@ final class LeftJoyConHIDAdapter {
                 count: Int(reportLength)
             )
         )
-        guard let status = JoyConBatteryHIDProtocol.parseBatteryStatus(
-            reportID: reportID,
-            bytes: bytes
-        ) else { return }
-        onBatteryStatus?(status)
+        if let status = JoyConBatteryHIDProtocol.parseBatteryStatus(
+            reportID: reportID, bytes: bytes
+        ) { onBatteryStatus?(status) }
+        if let events = supplement.processReport(reportID: reportID, bytes: bytes) {
+            let changedMode = lastButtonReportID != reportID
+            lastButtonReportID = reportID
+            emit(events)
+            if changedMode || !events.isEmpty { publishRawControlsDiagnostic() }
+        }
     }
 
     func handle(_ value: IOHIDValue) {
@@ -193,29 +203,46 @@ final class LeftJoyConHIDAdapter {
 
         guard usagePage == LeftJoyConHIDMapping.buttonUsagePage else { return }
 
-        if integerValue == 0 {
-            pressedUsages.remove(usage)
-        } else {
-            guard pressedUsages.insert(usage).inserted else { return }
-        }
-
-        guard let input = LeftJoyConHIDMapping.input(forButtonUsage: usage) else {
-            if
-                integerValue != 0,
-                !LeftJoyConHIDMapping.isGameControllerOwnedDuplicate(usage)
-            {
-                onStatus?("Observed left Joy-Con raw button usage \(usage); GameController owns or has not classified it.")
-            }
+        if LeftJoyConHIDMapping.input(forButtonUsage: usage) != nil {
+            let events = supplement.processUsage(usage, value: integerValue)
+            emit(events)
+            if !events.isEmpty { publishRawControlsDiagnostic() }
             return
         }
 
-        onEvent?(
-            ControllerEvent(
-                input: input,
-                phase: integerValue == 0 ? .released : .pressed
-            )
-        )
+        if integerValue == 0 { pressedUsages.remove(usage) }
+        else if pressedUsages.insert(usage).inserted,
+                !LeftJoyConHIDMapping.isGameControllerOwnedDuplicate(usage) {
+            onStatus?("Observed left Joy-Con raw button usage \(usage); GameController owns or has not classified it.")
+        }
     }
+
+    private func emit(_ events: [ControllerEvent]) {
+        for event in events {
+            if event.phase == .pressed {
+                if event.input == .leftShoulder { lPresses += 1 }
+                if event.input == .leftTrigger { zlPresses += 1 }
+            }
+            onEvent?(event)
+        }
+    }
+
+    private func publishRawControlsDiagnostic() {
+        let mode = lastButtonReportID.map { String(format: "report 0x%02X", $0) } ?? "HID element values"
+        let l = supplement.held.contains(.leftShoulder) ? "down" : "up"
+        let zl = supplement.held.contains(.leftTrigger) ? "down" : "up"
+        onRawControlsDiagnostic?("\(mode) · L=\(l)（按下 \(lPresses) 次） · ZL=\(zl)（按下 \(zlPresses) 次）")
+    }
+
+    private func resetSupplement() {
+        emit(supplement.reset())
+        pressedUsages.removeAll()
+        lastButtonReportID = nil
+        lPresses = 0
+        zlPresses = 0
+        publishRawControlsDiagnostic()
+    }
+
 }
 
 private func leftJoyConAdapter(

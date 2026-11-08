@@ -5,7 +5,7 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleDisplayName</key>
-    <string>Joy-Con Unified Controller</string>
+    <string>JoyRelay</string>
     <key>CFBundleExecutable</key>
     <string>JoyConUnifiedController</string>
     <key>CFBundleIconFile</key>
@@ -15,13 +15,13 @@
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>JoyConUnifiedController</string>
+    <string>JoyRelay</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.3.0</string>
+    <string>0.3.7</string>
     <key>CFBundleVersion</key>
-    <string>33</string>
+    <string>38</string>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.utilities</string>
     <key>LSUIElement</key>

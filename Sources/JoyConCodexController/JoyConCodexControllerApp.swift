@@ -29,7 +29,7 @@ struct JoyConCodexControllerApp: App {
     @StateObject private var model = AppModel()
 
     var body: some Scene {
-        Window("Joy-Con Unified Controller", id: AppSceneID.mainWindow) {
+        Window("JoyRelay", id: AppSceneID.mainWindow) {
             ContentView()
                 .environmentObject(model)
                 .frame(minWidth: 1_040, minHeight: 760)
@@ -48,7 +48,7 @@ struct JoyConCodexControllerApp: App {
                         .monospacedDigit()
                 }
             }
-            .accessibilityLabel("Joy-Con Unified Controller")
+            .accessibilityLabel("JoyRelay")
         }
         .menuBarExtraStyle(.menu)
 

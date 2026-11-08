@@ -5,6 +5,64 @@ local development/testing, not proof of a published or notarized release.
 The current release is **0.3.0**; the historical maintenance baseline is
 **0.1.12**. See [NOTICE.md](NOTICE.md) for attribution/license status.
 
+## 0.3.7 — development candidate
+
+- Rename the application to **JoyRelay**, including its macOS Accessibility
+  entry. The installer migrates the prior bundle filename without changing the
+  bundle identifier, executable name or profile paths.
+- Include the MIT license and upstream attribution notice in the binary archive.
+- Keep the GitHub repository name and upstream attribution intact.
+
+## 0.3.6 — development candidate
+
+- Add the Switch Pro right-hand layout: R/ZR navigate conversations; right
+  stick up/down scrolls, R3 jumps to the bottom, and Claude Code left/right
+  selects the prompt. The overlay does not rewrite shared mappings.
+- Preserve Pro L/ZL, Capture and the existing Joy-Con paths. The Pro layout
+  passed event replay; live app behavior and Pro dictation are not claimed.
+
+## 0.3.5 — development candidate
+
+- Recognize the first-generation Nintendo Switch Pro extended profile and
+  route its Share button through the existing Capture recognizer.
+
+## 0.3.4 — local candidate
+
+- Parse L/ZL/L3 from full 0x30–0x33 and simple 0x3F input reports, rather
+  than relying on HID element callbacks absent in the observed full-report mode.
+- Merge report and legacy value callbacks into one deduplicated edge source;
+  ignore stale command replies for buttons and release held state on disconnect.
+- Retain report-mode/L/ZL press-count diagnostics. The Codex native-shortcut
+  route and all saved profiles are unchanged.
+
+- Record the diagnosis in the [debugging log](Docs/Debugging-Log.md). The local
+  0.3.4 build passed 143 tests and received physical confirmation that L
+  dictation works on a left Joy-Con.
+
+## 0.3.3 — local candidate
+
+- Prefer Codex's existing native hold-to-dictate shortcut when configured.
+  Emit modifier-down/up as well as main-key events so the OS-global hold and
+  release listener can observe the full gesture, without AX button lookup.
+- Preserve the most recent voice diagnostic independently of stick feedback.
+- Keep Claude's voice route and all saved mappings unchanged. Physical voice
+  acceptance is separate from tests and successful event emission.
+
+## 0.3.2 — local candidate
+
+- Repair Codex microphone discovery when the desktop host exposes Chromium's
+  AXEnhancedUserInterface instead of Electron's AXManualAccessibility. Wait
+  without blocking controller input, and cancel preparation on L-up.
+- Match the microphone's title, description and help, ignore unavailable
+  duplicates, and keep stop/transcribe scoped to the original composer.
+- This is a local build; physical recording acceptance is tracked separately.
+
+## 0.3.1 — local candidate
+
+- Restore L-button dictation for current Codex and Claude Code desktop apps.
+  Codex uses its native composer microphone instead of the browser-only
+  shortcut, and Claude Code recognizes the updated Chinese prompt labels.
+
 ## 0.3.0 — first community release
 
 - Add configurable long-press actions (default 2 s, 500–5000 ms) in the mapping

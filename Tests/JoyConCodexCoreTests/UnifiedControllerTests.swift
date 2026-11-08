@@ -34,6 +34,76 @@ struct UnifiedControllerTests {
         return result
     }
 
+    @Test("Switch Pro right-hand navigation uses target chords and scrolls without changing ZL")
+    func proRightHandNavigation() {
+        for target in DesktopTarget.allCases {
+            var session = UnifiedControllerSession(target: target)
+            let rec = UnifiedRecorder()
+            let saved = profile
+            func send(_ input: ControllerInput, _ phase: InputPhase, _ time: Double, pro: Bool = true) {
+                _ = session.process(ControllerEvent(input: input, phase: phase,
+                    timestamp: origin.addingTimeInterval(time), layout: pro ? .switchProRightHand : nil),
+                    profile: saved, testMode: false, emitter: rec)
+            }
+            send(.leftTrigger, .pressed, 0, pro: false)
+            send(.rightShoulder, .pressed, 0.1)
+            send(.rightShoulder, .released, 0.15)
+            send(.rightTrigger, .pressed, 0.2)
+            send(.rightTrigger, .released, 0.25)
+            #expect(session.isFunctionLayerActive)
+            send(.leftTrigger, .released, 0.3, pro: false)
+            #expect(!session.isFunctionLayerActive)
+            send(.rightStickUp, .pressed, 1)
+            _ = session.advance(to: origin.addingTimeInterval(1.4), testMode: false, emitter: rec)
+            send(.rightStickUp, .released, 1.45)
+            _ = session.advance(to: origin.addingTimeInterval(1.8), testMode: false, emitter: rec)
+            send(.rightStickDown, .pressed, 2)
+            send(.rightStickDown, .released, 2.05)
+            send(.rightStickPress, .pressed, 3)
+            _ = session.advance(to: origin.addingTimeInterval(4), testMode: false, emitter: rec)
+            send(.rightStickPress, .released, 4.1)
+            #expect(rec.keys.map { $0.0.keyCode } == [33, 30])
+            #expect(rec.keys.map { $0.1 } == [.tap, .tap])
+            let modifiers: Set<KeyModifier> = target == .codex ? [.command, .option] : [.command, .shift]
+            #expect(rec.keys.allSatisfy { $0.0.modifiers == modifiers })
+            #expect(rec.scrolls == [.up, .up, .down, .toBottom])
+            #expect(saved == profile)
+        }
+    }
+
+    @Test("Only the Pro right stick directly selects a Claude prompt, including safe test mode")
+    func proDirectPromptSelection() {
+        for target in DesktopTarget.allCases {
+            for isPro in [false, true] {
+                for testMode in [false, true] {
+                    var session = UnifiedControllerSession(target: target)
+                    let rec = UnifiedRecorder()
+                    for input in [ControllerInput.rightStickLeft, .rightStickRight] {
+                        let side: DesktopPromptSide = input == .rightStickLeft ? .left : .right
+                        let event = ControllerEvent(input: input, phase: .pressed, layout: isPro ? .switchProRightHand : nil)
+                        let expected = isPro && target == .claudeCode
+                        #expect(session.promptSelection(for: event) == (expected ? side : nil))
+                        let result = session.process(event, profile: profile, testMode: testMode, emitter: rec)
+                        if expected {
+                            #expect(result == .desktopAction(.focusPrompt(side), disposition: testMode ? .suppressedByTestMode : .emitted))
+                            #expect(session.awaitingNeutral)
+                        }
+                        _ = session.process(ControllerEvent(input: input, phase: .released, layout: event.layout),
+                            profile: profile, testMode: testMode, emitter: rec)
+                        #expect(!session.awaitingNeutral)
+                    }
+                    if isPro && target == .claudeCode && !testMode {
+                        #expect(rec.desktopActions == [.focusPrompt(.left), .focusPrompt(.right)])
+                        #expect(rec.keys.isEmpty)
+                    } else {
+                        #expect(rec.desktopActions.isEmpty)
+                        #expect(rec.keys.map { $0.0.keyCode } == (testMode ? [] : [123, 124]))
+                    }
+                }
+            }
+        }
+    }
+
     @Test("Three complete ZL taps switch once, only on the third release")
     func chordPriority() {
         var session = UnifiedControllerSession()
@@ -417,6 +487,131 @@ struct UnifiedControllerTests {
         #expect(validated && !lookedForPrompt)
         #expect(session.isReady)
         #expect(emitter.keys.map(\.1) == [.keyDown, .keyUp])
+    }
+
+    @Test("Current Claude Code split composer labels match, without matching other text fields")
+    func updatedClaudePromptLabels() {
+        for label in ["输入您发送给 Claude 的提示词", "撰写您给 Claude 的回复", "Prompt"] {
+            #expect(DesktopAccessibilityPolicy.isPrompt(label))
+        }
+        #expect(!DesktopAccessibilityPolicy.isPrompt("搜索"))
+    }
+
+    @Test("Voice holds route to native dictation without taking over taps or custom keys")
+    func nativeDictationRoute() {
+        let voice = Shortcut(keyCode: 2, displayLabel: "D", modifiers: [.control, .shift])
+        let custom = Shortcut(keyCode: 2, displayLabel: "D", modifiers: [.command])
+        for target in DesktopTarget.allCases {
+            #expect(DesktopShortcutResolver.resolve(voice, for: target, phase: .keyDown) == .dictation)
+            #expect(DesktopShortcutResolver.resolve(voice, for: target, phase: .tap) == .keyboard(voice))
+            #expect(DesktopShortcutResolver.resolve(custom, for: target, phase: .keyDown) == .keyboard(custom))
+        }
+    }
+
+    @Test("Codex release waits through startup, stops recording, and never sends")
+    func codexDictationRelease() {
+        #expect(CodexDictationButton(label: "听写") == .idle)
+        #expect(CodexDictationButton(label: "正在启动听写；点击可取消") == .starting)
+        #expect(CodexDictationButton(label: "停止听写") == .recording)
+        #expect(CodexDictationButton(label: "Stop dictation") == .recording)
+        #expect(CodexDictationButton(label: "转录并发送") == nil)
+        #expect(CodexDictationButton(label: "Transcribe and send") == nil)
+        #expect(CodexDictationButton.release(for: .idle, deadlineReached: false) == .wait)
+        #expect(CodexDictationButton.release(for: .starting, deadlineReached: false) == .wait)
+        #expect(CodexDictationButton.release(for: .starting, deadlineReached: true) == .press)
+        #expect(CodexDictationButton.release(for: .recording, deadlineReached: false) == .press)
+        #expect(CodexDictationButton.release(for: .idle, deadlineReached: true) == .abandon)
+        #expect(CodexDictationButton.release(for: nil, deadlineReached: true) == .abandon)
+    }
+
+    @Test("Codex AX activation falls back from Electron to Chromium without double requesting")
+    func codexChromiumAccessibilityFallback() {
+        var requests: [String] = []
+        let selected = CodexAccessibilityActivation.enable { name in
+            requests.append(name)
+            return name == "AXEnhancedUserInterface"
+        }
+        #expect(selected == "AXEnhancedUserInterface")
+        #expect(requests == ["AXManualAccessibility", "AXEnhancedUserInterface"])
+        requests = []
+        #expect(CodexAccessibilityActivation.enable {
+            requests.append($0); return true
+        } == "AXManualAccessibility")
+        #expect(requests == ["AXManualAccessibility"])
+        #expect(CodexAccessibilityActivation.enable { _ in false } == nil)
+    }
+
+    @Test("Codex mic names use title, description and help, but never an unrelated send action")
+    func codexButtonSemanticNames() {
+        #expect(CodexDictationRecognition.state(names: ["button", " 听写 "]) == .idle)
+        #expect(CodexDictationRecognition.state(names: ["", "Dictate\n⌃⇧D"]) == .idle)
+        #expect(CodexDictationRecognition.state(names: ["聽寫"]) == .idle)
+        #expect(CodexDictationRecognition.state(names: ["停止口述"]) == .recording)
+        #expect(CodexDictationRecognition.state(names: ["转录并发送"]) == nil)
+        #expect(CodexDictationRecognition.state(names: ["Dictate", "Stop dictation"]) == nil)
+        #expect(CodexDictationRecognition.state(names: ["Send", "Transcribe and send"]) == nil)
+        #expect(CodexDictationRecognition.state(names: ["Send", "Dictate"]) == nil)
+    }
+
+    @Test("Disabled or hidden duplicate microphones do not invalidate the live mic")
+    func codexAvailableMicOnly() {
+        let window = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let button = CGRect(x: 900, y: 720, width: 32, height: 32)
+        for (enabled, hidden, pressable, expected) in [
+            (true, false, true, true), (false, false, true, false),
+            (true, true, true, false), (true, false, false, false)
+        ] {
+            #expect(CodexDictationRecognition.isStartCandidate(role: "AXButton",
+                names: ["听写"], enabled: enabled, hidden: hidden, pressable: pressable,
+                frame: button, window: window) == expected)
+        }
+        #expect(!CodexDictationRecognition.isStartCandidate(role: "AXStaticText",
+            names: ["听写"], enabled: true, hidden: false, pressable: true, frame: button, window: window))
+        #expect(!CodexDictationRecognition.isStartCandidate(role: "AXButton",
+            names: ["转录并发送"], enabled: true, hidden: false, pressable: true, frame: button, window: window))
+    }
+
+    @Test("Releasing L while Chromium warms up cancels, even if the microphone becomes ready")
+    func codexReleaseBeforeReadiness() {
+        #expect(CodexDictationPreparationPolicy.next(isHeld: false, ready: true, timedOut: false) == .cancel)
+        #expect(CodexDictationPreparationPolicy.next(isHeld: true, ready: false, timedOut: false) == .wait)
+        #expect(CodexDictationPreparationPolicy.next(isHeld: true, ready: true, timedOut: false) == .start)
+        #expect(CodexDictationPreparationPolicy.next(isHeld: true, ready: false, timedOut: true) == .fail)
+    }
+
+    @Test("Codex configured native hold parses only supported, unambiguous keyboard chords")
+    func codexNativeShortcutParsing() {
+        let expected = Shortcut(keyCode: 2, displayLabel: "D", modifiers: [.control, .shift])
+        #expect(CodexNativeDictationShortcut.parse("Ctrl+Shift+D") == expected)
+        #expect(CodexNativeDictationShortcut.parse(" Control + Shift + d ") == expected)
+        for value in ["", "Fn", "D", "Ctrl+D+E", "Ctrl++D", "Ctrl+Ctrl+D", "Ctrl+UnsupportedKey"] {
+            #expect(CodexNativeDictationShortcut.parse(value) == nil)
+        }
+    }
+
+    @Test("Native dictation includes modifier transitions and releases D before its modifiers")
+    func nativeDictationEventSequence() throws {
+        let shortcut = try #require(CodexNativeDictationShortcut.parse("Ctrl+Shift+D"))
+        let plan = NativeDictationHoldPlan(shortcut: shortcut)
+        #expect(plan.down.map(\.keyCode) == [59, 56, 2])
+        #expect(plan.down.map(\.down) == [true, true, true])
+        #expect(plan.down.map(\.isModifier) == [true, true, false])
+        #expect(plan.down.map(\.modifiers) == [Set([.control]), Set([.control, .shift]), Set([.control, .shift])])
+        #expect(plan.up.map(\.keyCode) == [2, 56, 59])
+        #expect(plan.up.map(\.down) == [false, false, false])
+        #expect(plan.up.map(\.modifiers) == [Set([.control, .shift]), Set([.control]), Set<KeyModifier>()])
+    }
+
+    @Test("Native dictation never releases a modifier that was already held")
+    func nativeDictationPreservesExistingModifiers() throws {
+        let shortcut = try #require(CodexNativeDictationShortcut.parse("Ctrl+Shift+D"))
+        let plan = NativeDictationHoldPlan(shortcut: shortcut, alreadyHeld: [.control])
+        #expect(plan.down.map(\.keyCode) == [56, 2])
+        #expect(plan.up.map(\.keyCode) == [2, 56])
+        #expect(plan.up.last?.modifiers == [.control])
+        let allHeld = NativeDictationHoldPlan(shortcut: shortcut, alreadyHeld: [.control, .shift])
+        #expect(allHeld.down.map(\.keyCode) == [2])
+        #expect(allHeld.up.map(\.keyCode) == [2])
     }
 
     @Test("An inaccessible Claude prompt still blocks activation and L")

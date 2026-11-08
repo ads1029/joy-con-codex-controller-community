@@ -1,18 +1,22 @@
 ## Purpose
 
-Define how the macOS companion discovers, classifies, and tracks Joy-Con controllers exposed by the operating system.
+Define how the macOS companion discovers, classifies, and tracks supported Nintendo controllers exposed by the operating system.
 
 ## Requirements
 
 ### Requirement: Detect supported controllers
-The system SHALL enumerate controllers exposed by the macOS GameController framework and SHALL identify devices whose vendor name or product category indicates a Nintendo Joy-Con.
+The system SHALL enumerate controllers exposed by the macOS GameController framework and SHALL identify devices whose vendor name or product category indicates a Nintendo Joy-Con, or whose category is `Switch Pro Controller` with an extended gamepad profile. Joy-Con SHALL retain priority when both families are connected.
 
 #### Scenario: Joy-Con is already connected at launch
 - **WHEN** the application finishes starting and macOS exposes a connected Joy-Con
 - **THEN** the application displays that controller as connected with its available identity and profile information
 
-#### Scenario: Non-Joy-Con controller is connected
-- **WHEN** macOS exposes a controller that cannot be identified as a Joy-Con
+#### Scenario: First-generation Switch Pro Controller is connected
+- **WHEN** macOS exposes a Switch Pro Controller with an extended gamepad profile
+- **THEN** the adapter enables its extended inputs and maps Share to the existing Capture input
+
+#### Scenario: Unsupported controller is connected
+- **WHEN** macOS exposes a controller that matches neither supported family
 - **THEN** the application lists it as unsupported and does not enable shortcut output for it
 
 ### Requirement: Track connection changes
