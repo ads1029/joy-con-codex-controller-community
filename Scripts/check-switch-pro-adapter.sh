@@ -1,14 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
-build_only=false
 case "${1:-}" in
-    '') ;;
-    --build-only) build_only=true ;;
-    *) echo "Usage: $0 [--build-only]" >&2; exit 64 ;;
+    ''|--build-only|--snapshot) ;;
+    *) echo "Usage: $0 [--build-only|--snapshot]" >&2; exit 64 ;;
 esac
 if [[ $# -gt 1 ]]; then
-    echo "Usage: $0 [--build-only]" >&2
+    echo "Usage: $0 [--build-only|--snapshot]" >&2
     exit 64
 fi
 if [[ "$(uname -s)" != Darwin ]]; then
@@ -31,8 +29,8 @@ swiftc -swift-version 6 -parse-as-library -I "$bin/Modules" \
     "$sources/RightJoyConHIDAdapter.swift" "$root/Tools/SwitchProAdapterProbe.swift" \
     "$bin"/JoyConCodexCore.build/*.swift.o -o "$work/SwitchProAdapterProbe"
 
-if "$build_only"; then
+if [[ "${1:-}" == --build-only ]]; then
     echo "Switch Pro adapter probe built (hardware check not run)."
     exit 0
 fi
-"$work/SwitchProAdapterProbe"
+"$work/SwitchProAdapterProbe" "$@"

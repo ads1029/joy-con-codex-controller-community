@@ -24,5 +24,5 @@ jobs:
           xcode-version: latest-stable
       - name: Run Swift tests
         run: swift test
-      - name: Compile the optional Switch Pro adapter probe
-        run: bash Scripts/check-switch-pro-adapter.sh --build-only
+      - name: Verify Switch Pro R/ZR bindings without hardware
+        run: bash Scripts/check-switch-pro-adapter.sh --snapshot

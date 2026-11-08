@@ -34,6 +34,7 @@ final class GameControllerAdapter {
     private var connectObserver: NSObjectProtocol?
     private var disconnectObserver: NSObjectProtocol?
     private var hapticEngine: CHHapticEngine?
+    private let controllerProvider: @MainActor () -> [GCController]
     private let leftJoyConHIDAdapter = LeftJoyConHIDAdapter()
     private let rightJoyConHIDAdapter = RightJoyConHIDAdapter()
     private var usesLeftJoyConHIDSupplement = false
@@ -46,8 +47,13 @@ final class GameControllerAdapter {
 
     private(set) var inputSourceStatus: String?
 
-    init() {
-        GCController.shouldMonitorBackgroundEvents = true
+    /// Supplying a controller source lets a writable GameController snapshot
+    /// exercise normal discovery and bindings without observing live hardware.
+    init(controllerProvider: (@MainActor () -> [GCController])? = nil) {
+        self.controllerProvider = controllerProvider ?? { GCController.controllers() }
+        if controllerProvider == nil {
+            GCController.shouldMonitorBackgroundEvents = true
+        }
         leftJoyConHIDAdapter.onEvent = { [weak self] event in
             Task { @MainActor [weak self] in
                 self?.onEvent?(event)
@@ -78,9 +84,13 @@ final class GameControllerAdapter {
                 self?.publishInputSourceStatus(status)
             }
         }
-        installNotifications()
+        if controllerProvider == nil {
+            installNotifications()
+        }
         refresh()
-        startBatteryRefresh()
+        if controllerProvider == nil {
+            startBatteryRefresh()
+        }
     }
 
     func rescan() {
@@ -199,7 +209,7 @@ final class GameControllerAdapter {
     }
 
     private func discoveredControllers() -> [GCController] {
-        let controllers = GCController.controllers()
+        let controllers = controllerProvider()
         // Keep the existing Joy-Con first in both UI/cleanup and input routing.
         return controllers.filter { isJoyCon($0) } + controllers.filter { !isJoyCon($0) }
     }
