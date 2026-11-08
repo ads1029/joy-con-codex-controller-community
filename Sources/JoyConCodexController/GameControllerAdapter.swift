@@ -400,9 +400,9 @@ final class GameControllerAdapter {
                      to: .buttonCapture, controllerID: controllerID)
             }
             bind(gamepad.leftShoulder, to: .leftShoulder, controllerID: controllerID)
-            bind(gamepad.rightShoulder, to: .rightShoulder, controllerID: controllerID, layout: proRightHand)
+            bind(gamepad.rightShoulder, to: .rightTrigger, controllerID: controllerID, layout: proRightHand)
             bind(gamepad.leftTrigger, to: .leftTrigger, controllerID: controllerID)
-            bind(gamepad.rightTrigger, to: .rightTrigger, controllerID: controllerID, layout: proRightHand)
+            bind(gamepad.rightTrigger, to: .rightShoulder, controllerID: controllerID, layout: proRightHand)
             bind(
                 gamepad.leftThumbstickButton,
                 to: .leftStickPress,
