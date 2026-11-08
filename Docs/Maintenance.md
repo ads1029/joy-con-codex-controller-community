@@ -33,6 +33,37 @@ diagnostic assumptions, layer-by-layer checks and physical acceptance evidence.
 Documentation-only changes need link, example, metadata and whitespace checks;
 they do not require rebuilding, reinstalling or resetting permissions.
 
+## Automated mapping regression
+
+From the repository root, run the focused replay without a controller:
+
+```sh
+swift test --filter JoyRelayMappingReplayTests
+```
+
+The replay uses a fixed clock, temporary fresh/imported/saved profile fixtures,
+and a recording emitter. It checks Left Joy-Con HID report-only L/ZL/L3 through
+the real mapping session, Switch Pro navigation and shared controls for both
+targets, Test Mode suppression, and Claude Code's D-pad right short/long press.
+It does not launch a desktop app, send system input or access live profiles.
+The [macOS test workflow](../.github/workflows/test.yml) runs the full suite and
+compiles the hardware probe on branch pushes and pull requests; it does not
+install or release anything.
+
+To check the actual GameController adapter bindings, leave only one
+first-generation Switch Pro connected and run:
+
+```sh
+bash Scripts/check-switch-pro-adapter.sh
+```
+
+The probe invokes the adapter's installed button/stick callbacks and compares
+the ordered press/release events and layout tags. No button presses or
+Accessibility grant are needed. It reports the first mismatch; exit 2 means
+the required device was unavailable and the check did not run. It does not
+verify Bluetooth event delivery, actual recording, or the installed target
+app's response to shortcuts. Use the physical checks below for those changes.
+
 ## Final checks for code and release candidates
 
 ```sh
